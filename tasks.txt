@@ -1,0 +1,25 @@
+we can also add a option for authorise chat 
+
+means if i will tell messages coming on this user or grp or community is imp then its imp
+
+we make a web app that is compatible for both the desktop as well as mobile users and in future scope we plan to extend it to extension that overlays on WhatsApp web. 
+
+ 2. Learning from Gemini spark, we identify the important and professional messages and generate a draft for them. this helps the user to just read and send the best possible replies in fast and efficient way, thus help in automation of task.       
+
+3. we build the pop ups, overlays on desktop or widget of app for the mobile user where important messages and their deadlines are displayed like a to do  list which shortens as each task gets completed. we also allow users to edit this list and make the task management more personalized and efficient. they can add or remove the tasks by pinning the  message to board feature          
+                            
+4. we study the behavioral patterns of the user. for Eg : if I text good morning to all my customers every morning at 10:00 am then we five you the option of repeat behavior and the message will be sent to the selective repeated observed recipients. only date, time and name may change eventually depending on the behavior of each chat. in short collective chat patterns can also make behavior definition that helps to define a pattern for drafts
+
+5. the very important feature of the WhatsApp is end to end encryption. yes there are apps who tried to make WhatsApp management applications but they failed to retain privacy as they break the e2e encryption protocol. for this we use BLOCKCHAIN (polygon, oracle and smart contracts ) and perform hashing to encrypt the data. thus the servers only see the meta data and thus privacy is retained  
+
+ 6. we use AI/NLP and rag to understand patterns, create draft etc. these read the messages and identify important keywords like deadline , pole, etc. this keeps the priority in node/graph architecture at the backend.                                                  
+
+7. we study the reply deadlines. and the more we observe the deadline closure or procrastination, we increase the urgency score thus incrementing the number of reminders, alerts etc.                                                                                           
+
+8. We identify the fake sites, spam etc. and save user from spam. we use blockchain and cybersecurity API for this
+
+9. we fetch the data from WhatsApp auto alert Api.                                                                    
+
+10. we provide user analysis dashboard , help them analyze tasks, automate etc. a graph denotes their behaviors, missed deadlines, urgency scores, procrastination patterns, important contacts, etc.
+
+11. we also integrate a chatbot that scales your schedule as per your wish. it clears all your doubts, FAQs etc. just like meta ai in WhatsApp.
