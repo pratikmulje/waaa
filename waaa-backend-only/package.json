@@ -1,0 +1,23 @@
+{
+  "name": "waaa-backend-minimal",
+  "version": "0.1.0",
+  "description": "WAAA Phase 1 only: WhatsApp connection via Baileys, logging messages to console + a local file. No Firebase, no dashboard yet.",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/runtimeServer.js",
+    "bot": "node src/index.js",
+    "api": "node src/api/server.js"
+  },
+  "dependencies": {
+    "@google/genai": "^2.18.0",
+    "@hapi/boom": "^10.0.1",
+    "@whiskeysockets/baileys": "^6.7.9",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "git": "^0.1.5",
+    "pino": "^9.4.0",
+    "qrcode-terminal": "^0.12.0"
+  }
+}

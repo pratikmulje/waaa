@@ -1,0 +1,56 @@
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html.light {
+  color-scheme: light;
+}
+
+body {
+  @apply bg-surface text-ink font-body antialiased;
+  background-image: theme("backgroundImage.grid-fade");
+  background-attachment: fixed;
+}
+
+html.light body {
+  background-color: #F5F7F8;
+  color: #14191D;
+  background-image: none;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: #263039;
+  border-radius: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.focus-ring {
+  @apply outline-none focus-visible:ring-2 focus-visible:ring-emerald-glow/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+.signal-bar {
+  @apply relative h-1.5 w-full overflow-hidden rounded-full bg-surface-border;
+}
+.signal-bar > span {
+  @apply absolute inset-y-0 left-0 rounded-full transition-all duration-700 ease-out;
+}

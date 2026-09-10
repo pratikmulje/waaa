@@ -1,0 +1,46 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Firebase / Google credentials
+firebase/serviceAccountKey.json
+**/serviceAccountKey.json
+**/*service-account*.json
+
+# WhatsApp authentication/session data
+auth_info/
+auth_info/**
+creds.json
+
+# Local data storage (replaces Firestore — messages, conversations,
+# chat settings, connection state; also holds a per-collection .lock
+# file during writes)
+/data/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# Python generated files
+*.log
+
+# VS Code
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build output
+dist/
+build/
