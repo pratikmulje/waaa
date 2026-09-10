@@ -1,4 +1,4 @@
-# Node
+﻿# Node
 node_modules/
 npm-debug.log*
 yarn-debug.log*
@@ -9,24 +9,34 @@ yarn-error.log*
 .env.*
 !.env.example
 
-waaa-backend-only/auth_info_backup/
-waaa-backend-only/auth_info/
+# WhatsApp authentication & session credentials
+**/auth_info/
+**/auth_info/**
+**/auth_info_backup/
+**/auth_info_backup/**
+**/creds.json
+auth_info/
+auth_info/**
+auth_info_backup/
+auth_info_backup/**
+creds.json
+
+# Local JSON database & lockfiles (replaces Firestore)
+**/data/
+**/data/**
+/data/
+*.lock
+*.tmp.*
+
+# Archives & binaries
+*.zip
+*.tar.gz
+*.tgz
 
 # Firebase / Google credentials
 firebase/serviceAccountKey.json
 **/serviceAccountKey.json
 **/*service-account*.json
-
-# WhatsApp authentication/session data
-auth_info/
-auth_info/**
-creds.json
-auth_info_backup/
-
-# Local data storage (replaces Firestore — messages, conversations,
-# chat settings, connection state; also holds a per-collection .lock
-# file during writes)
-/data/
 
 # Python
 __pycache__/
@@ -34,14 +44,10 @@ __pycache__/
 .venv/
 venv/
 env/
-
-# Python generated files
 *.log
 
-# VS Code
+# VS Code & OS
 .vscode/
-
-# OS
 .DS_Store
 Thumbs.db
 
