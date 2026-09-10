@@ -1,33 +1,52 @@
 import React from "react";
-import { Menu, Sun, Moon } from "lucide-react";
+import { Menu, Link } from "lucide-react";
+import { Link as RouterLink } from "react-router-dom";
+import { Wordmark } from "./Sidebar.jsx";
 import StatusDot from "../common/StatusDot.jsx";
 import { useConnection } from "../../context/ConnectionContext.jsx";
-import { useTheme } from "../../context/ThemeContext.jsx";
 
 export default function Topbar({ onMenuClick, title }) {
   const conn = useConnection();
-  const { theme, setTheme } = useTheme();
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-surface-border bg-surface/80 px-4 backdrop-blur lg:px-8">
+    <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between border-b border-surface-border bg-surface/90 px-4 backdrop-blur-md lg:px-6">
+      {/* Left: hamburger (mobile) + title */}
       <div className="flex items-center gap-3">
-        <button onClick={onMenuClick} className="focus-ring rounded-lg p-1.5 text-ink-muted hover:bg-white/5 lg:hidden">
+        <button
+          onClick={onMenuClick}
+          className="focus-ring rounded-lg p-1.5 text-ink-muted hover:bg-surface-hover hover:text-ink lg:hidden"
+          aria-label="Open navigation"
+        >
           <Menu className="h-5 w-5" />
         </button>
-        <h1 className="font-display text-lg font-semibold text-ink">{title}</h1>
+
+        {/* WAAA wordmark on mobile only */}
+        <div className="lg:hidden">
+          <Wordmark />
+        </div>
+
+        {/* Page title on desktop */}
+        <h1 className="hidden font-display text-base font-semibold text-ink lg:block">
+          {title}
+        </h1>
       </div>
 
-      <div className="flex items-center gap-3">
-        <div className="hidden items-center gap-2 rounded-full border border-surface-border bg-surface-panel px-3 py-1.5 sm:flex">
-          <StatusDot status={conn?.status} />
-        </div>
-        <button
-          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-          className="focus-ring rounded-lg border border-surface-border bg-surface-panel p-2 text-ink-muted hover:text-ink"
-          aria-label="Toggle theme"
+      {/* Right: connection status */}
+      <div className="flex items-center gap-2">
+        <RouterLink
+          to="/connection"
+          className="focus-ring hidden items-center gap-2 rounded-full border border-surface-border bg-surface-panel px-3.5 py-1.5 text-xs transition-colors hover:border-accent/25 sm:flex"
         >
-          {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-        </button>
+          <StatusDot status={conn?.status} showLabel={false} />
+          <span className="font-medium text-ink-muted">
+            {conn?.status === "connected" ? "Connected" : conn?.status === "connecting" ? "Connecting…" : conn?.status === "waiting_qr" ? "Scan QR" : "Disconnected"}
+          </span>
+        </RouterLink>
+
+        {/* Mobile status dot only */}
+        <div className="sm:hidden">
+          <StatusDot status={conn?.status} showLabel={false} />
+        </div>
       </div>
     </header>
   );

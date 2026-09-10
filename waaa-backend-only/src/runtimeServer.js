@@ -1,4 +1,4 @@
-﻿/*
+/*
 ==============================================================================
 WAAA - Unified Production Runtime Server                              Phase 16
 ==============================================================================
@@ -40,6 +40,7 @@ import fraudRoutes from "./api/routes/fraud.js";
 import intelligenceRoutes from "./api/routes/intelligence.js";
 import peopleRoutes from "./api/routes/people.js";
 import blockchainRoutes from "./api/routes/blockchain.js";
+import { start as startWhatsAppBot } from "./index.js";
 
 const app = express();
 const PORT = process.env.PORT || process.env.WAAA_API_PORT || 10000;
@@ -66,6 +67,10 @@ startConnectionSync();
 startDataSync();
 recoverInterruptedJobs().catch((err) => console.error("[Runtime] Failed to recover interrupted jobs:", err.message));
 startDeadlineMonitor();
+
+// Start persistent WhatsApp bot (Baileys session)
+startWhatsAppBot().catch((err) => console.error("[Runtime] WhatsApp bot start failed:", err.message));
+
 
 // ── Middleware ────────────────────────────────────────────────────────────────
 app.use(cors());

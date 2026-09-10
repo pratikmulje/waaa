@@ -4290,12 +4290,10 @@ console.log(
 );
 
 
-start().catch(
-  (error) => {
+export { start };
 
-    console.error(
-      "[fatal] failed to start:",
-      error
-    );
-  }
-);
+if (process.argv[1] && process.argv[1].replace(/\\/g, "/").endsWith("src/index.js")) {
+  start().catch((error) => {
+    console.error("[fatal] failed to start:", error);
+  });
+}

@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap");
 
 @tailwind base;
 @tailwind components;
@@ -8,49 +8,165 @@
   color-scheme: dark;
 }
 
-html.light {
-  color-scheme: light;
+/* Force dark mode always */
+html {
+  color-scheme: dark;
 }
 
 body {
   @apply bg-surface text-ink font-body antialiased;
   background-image: theme("backgroundImage.grid-fade");
   background-attachment: fixed;
+  min-height: 100dvh;
 }
 
-html.light body {
-  background-color: #F5F7F8;
-  color: #14191D;
-  background-image: none;
-}
-
+/* ── Scrollbar ───────────────────────────────── */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-thumb {
-  background: #263039;
-  border-radius: 8px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 100px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255,255,255,0.14);
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 
+/* ── Focus ring ──────────────────────────────── */
 .focus-ring {
-  @apply outline-none focus-visible:ring-2 focus-visible:ring-emerald-glow/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface;
+  @apply outline-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-1 focus-visible:ring-offset-surface;
 }
 
+/* ── Glass panels ────────────────────────────── */
+.glass {
+  background: linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.01) 100%);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255,255,255,0.07);
+}
+
+.glass-sm {
+  background: rgba(255,255,255,0.03);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+.glass-accent {
+  background: linear-gradient(135deg, rgba(56,189,248,0.07) 0%, rgba(56,189,248,0.02) 100%);
+  border: 1px solid rgba(56,189,248,0.15);
+}
+
+/* ── Thinking animation ──────────────────────── */
+.thinking-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: theme('colors.accent.DEFAULT');
+  display: inline-block;
+  animation: thinkingBounce 1.4s ease-in-out infinite;
+}
+
+.thinking-dot:nth-child(1) { animation-delay: 0ms; }
+.thinking-dot:nth-child(2) { animation-delay: 200ms; }
+.thinking-dot:nth-child(3) { animation-delay: 400ms; }
+
+@keyframes thinkingBounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30% { transform: translateY(-5px); opacity: 1; }
+}
+
+/* ── Message bubbles ─────────────────────────── */
+.bubble-waaa {
+  @apply rounded-2xl rounded-tl-sm px-4 py-3 text-sm leading-relaxed;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.07);
+}
+
+.bubble-user {
+  @apply rounded-2xl rounded-tr-sm px-4 py-3 text-sm leading-relaxed text-white;
+  background: linear-gradient(135deg, rgba(56,189,248,0.25) 0%, rgba(56,189,248,0.15) 100%);
+  border: 1px solid rgba(56,189,248,0.25);
+}
+
+/* ── Accent glow ─────────────────────────────── */
+.accent-glow {
+  box-shadow: 0 0 20px -4px rgba(56,189,248,0.3);
+}
+
+.accent-glow-text {
+  text-shadow: 0 0 20px rgba(56,189,248,0.5);
+}
+
+/* ── Sidebar nav active ──────────────────────── */
+.nav-active {
+  @apply text-accent;
+  background: rgba(56,189,248,0.08);
+  border: 1px solid rgba(56,189,248,0.15);
+}
+
+.nav-item {
+  @apply flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-ink-muted transition-all duration-150;
+  border: 1px solid transparent;
+}
+
+.nav-item:hover {
+  @apply bg-surface-hover text-ink;
+}
+
+/* ── Input ───────────────────────────────────── */
+.waaa-input {
+  @apply w-full rounded-2xl border border-surface-border bg-surface-raised px-4 py-3 text-sm text-ink placeholder:text-ink-faint outline-none transition-all duration-200;
+}
+
+.waaa-input:focus {
+  border-color: rgba(56,189,248,0.35);
+  box-shadow: 0 0 0 3px rgba(56,189,248,0.08);
+}
+
+/* ── Animations ──────────────────────────────── */
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.25s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Connection pulse ────────────────────────── */
+@keyframes connectedPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(16,217,160,0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(16,217,160,0); }
+}
+
+.connected-pulse {
+  animation: connectedPulse 2s ease-in-out infinite;
+}
+
+/* ── Importance left accent ──────────────────── */
+.importance-accent {
+  border-left: 2px solid rgba(167,139,250,0.6);
+}
+
+/* ── Performance: reduced motion ─────────────── */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
   }
-}
-
-.signal-bar {
-  @apply relative h-1.5 w-full overflow-hidden rounded-full bg-surface-border;
-}
-.signal-bar > span {
-  @apply absolute inset-y-0 left-0 rounded-full transition-all duration-700 ease-out;
 }

@@ -47,6 +47,7 @@ export function getRetrievalMetrics() { return { ...retrievalMetrics }; }
 export function detectRetrievalIntent(query) {
   const lower = String(query || "").toLowerCase();
 
+  if (/summarize|summary|what happened|overview/i.test(lower) && /group|chat|message|conversation|discussion/i.test(lower)) return "SUMMARY";
   if (/what changed|recent(?:ly)?|latest|new(?:ly)?/i.test(lower)) return "CHANGES";
   if (/waiting for|waiting on me|someone waiting/i.test(lower)) return "WAITING";
   if (/blocker|stuck|impediment/i.test(lower)) return "BLOCKERS";

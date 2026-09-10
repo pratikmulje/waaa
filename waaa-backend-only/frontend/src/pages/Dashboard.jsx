@@ -1,106 +1,170 @@
-import React from "react";
-import { MessagesSquare, Users, Star, Flame, ShieldAlert, Radio } from "lucide-react";
-import AppShell from "../components/layout/AppShell.jsx";
-import { SkeletonCard } from "../components/common/Skeleton.jsx";
-import ErrorState from "../components/common/ErrorState.jsx";
-import StatusDot from "../components/common/StatusDot.jsx";
-import { usePolling } from "../hooks/usePolling.js";
-import { getStatsSummary } from "../api/stats.js";
-import { useConnection } from "../context/ConnectionContext.jsx";
+import React, { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
+import {
+  MessageSquare,
+  Flame,
+  CheckSquare,
+  Clock,
+  Bell,
+  ChevronRight,
+  Zap,
+  Radio,
+} from "lucide-react";
+import AppShell from "../components/layout/AppShell.jsx";
+import { useConnection } from "../context/ConnectionContext.jsx";
+import { usePolling } from "../hooks/usePolling.js";
+import { getAlerts } from "../api/intelligence.js";
+import { getDeadlines } from "../api/intelligence.js";
+import { getStatsSummary } from "../api/stats.js";
 
 function greeting() {
   const h = new Date().getHours();
+  if (h < 5) return "Good night";
   if (h < 12) return "Good morning";
-  if (h < 18) return "Good afternoon";
+  if (h < 17) return "Good afternoon";
   return "Good evening";
 }
 
 export default function Dashboard() {
   const conn = useConnection();
-  const { data, error, loading, reload } = usePolling(getStatsSummary, { intervalMs: 8000 });
+  const { data: alertsData } = usePolling(
+    () => getAlerts({ unread: "true", limit: 5 }),
+    { intervalMs: 15000 }
+  );
+  const { data: deadlinesData } = usePolling(
+    () => getDeadlines({ limit: 5 }),
+    { intervalMs: 30000 }
+  );
+  const { data: stats } = usePolling(getStatsSummary, { intervalMs: 20000 });
 
-  const cards = [
-    { key: "totalMessages", label: "Total Messages", icon: MessagesSquare, tone: "emerald", to: "/chats" },
-    { key: "totalConversations", label: "Conversations", icon: Users, tone: "cyan", to: "/chats" },
-    { key: "priorityChatMessages", label: "Priority Chat Msgs", icon: Star, tone: "violet", hint: "last 500", to: "/priority" },
-    { key: "importantMessages", label: "Important Messages", icon: Flame, tone: "violet", hint: "last 500", to: "/important" },
-    { key: "fraudAlerts", label: "Fraud Alerts", icon: ShieldAlert, tone: "red", hint: "last 500", to: "/fraud" },
+  const unreadAlerts = alertsData?.alerts || [];
+  const upcomingDeadlines = (deadlinesData?.deadlines || []).slice(0, 3);
+
+  const quickLinks = [
+    { to: "/chats", icon: MessageSquare, label: "Chats", hint: stats?.totalConversations ? `${stats.totalConversations} conversations` : "Your messages" },
+    { to: "/important", icon: Flame, label: "Important", hint: "High priority messages" },
+    { to: "/tasks", icon: CheckSquare, label: "Tasks", hint: "Pending actions" },
+    { to: "/deadlines", icon: Clock, label: "Deadlines", hint: "Upcoming due dates" },
+    { to: "/alerts", icon: Bell, label: "Alerts", hint: unreadAlerts.length > 0 ? `${unreadAlerts.length} unread` : "Nothing new" },
+    { to: "/assistant", icon: Zap, label: "Ask WAAA", hint: "JARVIS-powered search" },
   ];
 
-  const toneClasses = {
-    emerald: "text-emerald-glow bg-emerald-500/10 ring-emerald-500/25",
-    cyan: "text-cyan-glow bg-cyan-500/10 ring-cyan-500/25",
-    violet: "text-violet-glow bg-violet-500/10 ring-violet-500/25",
-    red: "text-red-400 bg-red-500/10 ring-red-500/25",
-  };
-
   return (
-    <AppShell title="Dashboard">
+    <AppShell title="Home">
+      {/* Disconnected banner */}
       {conn?.status !== "connected" && (
         <Link
           to="/connection"
-          className="mb-6 flex items-center justify-between rounded-xl border border-amber-500/25 bg-amber-500/10 px-4 py-3 text-sm text-amber-300 hover:bg-amber-500/15"
+          className="mb-6 flex items-center justify-between rounded-2xl border border-amber-500/20 bg-amber-500/8 px-4 py-3 text-sm text-amber-400 hover:bg-amber-500/12 transition-colors animate-fade-in"
         >
           <span className="flex items-center gap-2">
-            <Radio className="h-4 w-4" /> WhatsApp isn't connected right now — showing data already collected.
+            <Radio className="h-4 w-4 shrink-0" />
+            WhatsApp isn't connected — showing previously collected data.
           </span>
-          <span className="font-medium underline underline-offset-2">Connect →</span>
+          <ChevronRight className="h-4 w-4 shrink-0 text-amber-500" />
         </Link>
       )}
 
-      <div className="mb-8">
-        <h2 className="font-display text-2xl font-semibold text-ink">{greeting()}</h2>
-        <p className="mt-1 text-sm text-ink-muted">Here's what needs your attention.</p>
+      {/* Greeting */}
+      <div className="mb-8 animate-slide-up">
+        <h2 className="font-display text-2xl font-semibold text-ink tracking-tight">
+          {greeting()}.
+        </h2>
+        <p className="mt-1 text-sm text-ink-muted">
+          {conn?.status === "connected"
+            ? "WAAA is active and processing your messages."
+            : "WAAA is ready. Connect WhatsApp to begin."}
+        </p>
       </div>
 
-      {error && <ErrorState message="Couldn't load dashboard stats from the API." onRetry={reload} />}
+      {/* Quick nav grid */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 animate-slide-up">
+        {quickLinks.map((link) => (
+          <Link
+            key={link.to}
+            to={link.to}
+            className="group relative flex flex-col rounded-2xl border border-surface-border bg-surface-panel p-4 transition-all duration-200 hover:border-accent/25 hover:bg-surface-hover hover:shadow-glow-sm"
+          >
+            <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl border border-surface-border bg-surface-raised transition-colors group-hover:border-accent/25 group-hover:bg-accent/8">
+              <link.icon className="h-4 w-4 text-ink-muted transition-colors group-hover:text-accent" strokeWidth={1.75} />
+            </div>
+            <p className="text-sm font-semibold text-ink">{link.label}</p>
+            <p className="mt-0.5 text-xs text-ink-faint">{link.hint}</p>
+            <ChevronRight className="absolute right-3 top-3 h-3.5 w-3.5 text-ink-faint opacity-0 transition-opacity group-hover:opacity-100" />
+          </Link>
+        ))}
+      </div>
 
-      {!error && (
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
-          {loading || !data
-            ? Array.from({ length: 5 }).map((_, i) => <SkeletonCard key={i} />)
-            : cards.map((c) => (
-                <Link
-                  to={c.to}
-                  key={c.key}
-                  className="group rounded-2xl border border-surface-border bg-surface-panel p-5 shadow-panel transition-colors hover:border-white/10 hover:bg-white/[0.02]"
-                >
-                  <div className={`mb-4 flex h-9 w-9 items-center justify-center rounded-lg ring-1 ${toneClasses[c.tone]}`}>
-                    <c.icon className="h-4.5 w-4.5" strokeWidth={1.75} />
-                  </div>
-                  <p className="font-mono text-2xl font-semibold text-ink">{data[c.key] ?? "—"}</p>
-                  <p className="mt-1 text-xs text-ink-muted">{c.label}</p>
-                  {c.hint && <p className="mt-0.5 text-[10px] text-ink-faint">{c.hint}</p>}
-                </Link>
-              ))}
+      {/* Upcoming deadlines (if any) */}
+      {upcomingDeadlines.length > 0 && (
+        <div className="mt-8 animate-slide-up">
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="flex items-center gap-2 text-sm font-semibold text-ink">
+              <Clock className="h-4 w-4 text-accent" strokeWidth={1.75} />
+              Upcoming Deadlines
+            </h3>
+            <Link to="/deadlines" className="text-xs text-accent hover:text-accent-glow transition-colors">
+              View all →
+            </Link>
+          </div>
+          <div className="space-y-2">
+            {upcomingDeadlines.map((d, i) => (
+              <div
+                key={d.id || i}
+                className="flex items-center justify-between rounded-xl border border-surface-border bg-surface-panel px-4 py-3 text-sm"
+              >
+                <span className="text-ink truncate mr-3">{d.text || d.action || "Deadline"}</span>
+                <span className="shrink-0 text-xs text-ink-faint">
+                  {d.dueDate ? new Date(d.dueDate).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"}
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
-      <div className="mt-10 grid gap-4 lg:grid-cols-2">
-        <QuickLink to="/priority" title="Priority Chats" desc="Conversations flagged high-importance or manually starred." icon={Star} />
-        <QuickLink to="/fraud" title="Fraud Center" desc="Messages with elevated risk scores from rule + ML analysis." icon={ShieldAlert} />
-      </div>
-    </AppShell>
-  );
-}
+      {/* Unread alerts (if any) */}
+      {unreadAlerts.length > 0 && (
+        <div className="mt-6 animate-slide-up">
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="flex items-center gap-2 text-sm font-semibold text-ink">
+              <Bell className="h-4 w-4 text-accent" strokeWidth={1.75} />
+              Unread Alerts
+              <span className="ml-1 rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-bold text-accent">
+                {unreadAlerts.length}
+              </span>
+            </h3>
+            <Link to="/alerts" className="text-xs text-accent hover:text-accent-glow transition-colors">
+              View all →
+            </Link>
+          </div>
+          <div className="space-y-2">
+            {unreadAlerts.slice(0, 3).map((a, i) => (
+              <div
+                key={a.alertId || i}
+                className="rounded-xl border border-accent/15 bg-accent/5 px-4 py-3 text-sm"
+              >
+                <p className="text-ink leading-snug">{a.message || a.text || "Alert"}</p>
+                {a.createdAt && (
+                  <p className="mt-1 text-[10px] text-ink-faint">
+                    {new Date(a.createdAt).toLocaleString()}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
-function QuickLink({ to, title, desc, icon: Icon }) {
-  return (
-    <Link
-      to={to}
-      className="flex items-center justify-between rounded-2xl border border-surface-border bg-surface-panel p-5 shadow-panel transition-colors hover:border-white/10 hover:bg-white/[0.03]"
-    >
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/5 ring-1 ring-white/10">
-          <Icon className="h-4.5 w-4.5 text-ink-muted" strokeWidth={1.75} />
+      {/* Empty state — nothing to show */}
+      {unreadAlerts.length === 0 && upcomingDeadlines.length === 0 && (
+        <div className="mt-10 text-center animate-fade-in">
+          <p className="text-sm text-ink-faint">No alerts or upcoming deadlines right now.</p>
+          <p className="mt-1 text-xs text-ink-faint">
+            Ask WAAA anything, or open a chat to get started.
+          </p>
         </div>
-        <div>
-          <p className="font-medium text-ink">{title}</p>
-          <p className="text-xs text-ink-muted">{desc}</p>
-        </div>
-      </div>
-      <span className="text-ink-faint">→</span>
-    </Link>
+      )}
+    </AppShell>
   );
 }

@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import AppShell from "../components/layout/AppShell.jsx";
-import { useTheme } from "../context/ThemeContext.jsx";
 import { useConnection } from "../context/ConnectionContext.jsx";
 import StatusDot from "../components/common/StatusDot.jsx";
 
@@ -23,9 +22,7 @@ function useLocalSlider(key, initial) {
 }
 
 export default function Settings() {
-  const { theme, setTheme, density, setDensity } = useTheme();
   const conn = useConnection();
-
   const [fraudAlerts, setFraudAlerts] = useLocalToggle("waaa:notif:fraud", true);
   const [priorityAlerts, setPriorityAlerts] = useLocalToggle("waaa:notif:priority", true);
   const [importantAlerts, setImportantAlerts] = useLocalToggle("waaa:notif:important", true);
@@ -34,7 +31,8 @@ export default function Settings() {
 
   return (
     <AppShell title="Settings">
-      <div className="mx-auto max-w-2xl space-y-6">
+      <div className="mx-auto max-w-xl space-y-4">
+
         <Section title="Account">
           <Row label="Connection status">
             <StatusDot status={conn?.status} />
@@ -46,39 +44,34 @@ export default function Settings() {
           </Row>
         </Section>
 
-        <Section title="Notifications" hint="Stored locally in this browser — not synced to the backend yet.">
+        <Section
+          title="Notifications"
+          hint="Stored locally in this browser."
+        >
           <Toggle label="Fraud alerts" checked={fraudAlerts} onChange={setFraudAlerts} />
           <Toggle label="Priority chat alerts" checked={priorityAlerts} onChange={setPriorityAlerts} />
           <Toggle label="Important message alerts" checked={importantAlerts} onChange={setImportantAlerts} />
         </Section>
 
-        <Section title="Intelligence" hint="Adjusts what counts as 'important' or 'risky' in the UI only — doesn't change backend scoring.">
+        <Section
+          title="Intelligence Thresholds"
+          hint="Adjusts UI display only — does not change backend scoring."
+        >
           <Slider label="Priority threshold" value={priorityThreshold} onChange={setPriorityThreshold} />
           <Slider label="Risk display threshold" value={riskThreshold} onChange={setRiskThreshold} />
         </Section>
 
         <Section title="Appearance">
           <Row label="Theme">
-            <select
-              value={theme}
-              onChange={(e) => setTheme(e.target.value)}
-              className="focus-ring rounded-lg border border-surface-border bg-surface-raised px-3 py-1.5 text-sm text-ink"
-            >
-              <option value="dark">Dark</option>
-              <option value="light">Light</option>
-            </select>
-          </Row>
-          <Row label="Density">
-            <select
-              value={density}
-              onChange={(e) => setDensity(e.target.value)}
-              className="focus-ring rounded-lg border border-surface-border bg-surface-raised px-3 py-1.5 text-sm text-ink"
-            >
-              <option value="comfortable">Comfortable</option>
-              <option value="compact">Compact</option>
-            </select>
+            <span className="rounded-lg border border-surface-border bg-surface-raised px-3 py-1.5 text-sm text-ink-muted">
+              Dark (fixed)
+            </span>
           </Row>
         </Section>
+
+        <div className="pt-1 text-center">
+          <p className="text-[11px] text-ink-faint">WAAA · Local instance · v0.1</p>
+        </div>
       </div>
     </AppShell>
   );
@@ -107,10 +100,18 @@ function Toggle({ label, checked, onChange }) {
   return (
     <Row label={label}>
       <button
+        role="switch"
+        aria-checked={checked}
         onClick={() => onChange(!checked)}
-        className={`focus-ring relative h-6 w-11 rounded-full transition-colors ${checked ? "bg-emerald-500/60" : "bg-white/10"}`}
+        className={`focus-ring relative h-6 w-11 rounded-full transition-colors ${
+          checked ? "bg-accent/60" : "bg-surface-border"
+        }`}
       >
-        <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${checked ? "translate-x-5" : "translate-x-0.5"}`} />
+        <span
+          className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+            checked ? "translate-x-5" : "translate-x-0.5"
+          }`}
+        />
       </button>
     </Row>
   );
@@ -119,9 +120,9 @@ function Toggle({ label, checked, onChange }) {
 function Slider({ label, value, onChange }) {
   return (
     <div>
-      <div className="mb-1 flex items-center justify-between text-sm">
+      <div className="mb-1.5 flex items-center justify-between text-sm">
         <span className="text-ink-muted">{label}</span>
-        <span className="font-mono text-ink">{value}</span>
+        <span className="font-mono text-xs text-accent">{value}</span>
       </div>
       <input
         type="range"
@@ -129,7 +130,7 @@ function Slider({ label, value, onChange }) {
         max={100}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full accent-emerald-500"
+        className="w-full accent-accent h-1.5"
       />
     </div>
   );

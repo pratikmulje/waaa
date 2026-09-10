@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { Routes, Route } from "react-router-dom";
 
-import { ThemeProvider } from "./context/ThemeContext.jsx";
 import { ToastProvider } from "./context/ToastContext.jsx";
 import { ConnectionProvider } from "./context/ConnectionContext.jsx";
 
@@ -14,6 +13,9 @@ import Analytics from "./pages/Analytics.jsx";
 import AIAssistant from "./pages/AIAssistant.jsx";
 import Settings from "./pages/Settings.jsx";
 import ConnectionPage from "./pages/Connection.jsx";
+import TasksPage from "./pages/Tasks.jsx";
+import DeadlinesPage from "./pages/Deadlines.jsx";
+import AlertsPage from "./pages/AlertsPage.jsx";
 
 const INTRO_KEY = "waaa:intro-seen";
 
@@ -26,24 +28,25 @@ export default function App() {
   }
 
   return (
-    <ThemeProvider>
-      <ToastProvider>
-        <ConnectionProvider>
-          {showIntro && <Intro onDone={dismissIntro} />}
+    <ToastProvider>
+      <ConnectionProvider>
+        {showIntro && <Intro onDone={dismissIntro} />}
 
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/priority" element={<Chats priorityOnly />} />
-            <Route path="/chats" element={<Chats />} />
-            <Route path="/important" element={<ImportantMessages />} />
-            <Route path="/fraud" element={<FraudCenter />} />
-            <Route path="/assistant" element={<AIAssistant />} />
-            <Route path="/analytics" element={<Analytics />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/connection" element={<ConnectionPage />} />
-          </Routes>
-        </ConnectionProvider>
-      </ToastProvider>
-    </ThemeProvider>
+        <Routes>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/priority" element={<Chats priorityOnly />} />
+          <Route path="/chats" element={<Chats />} />
+          <Route path="/important" element={<ImportantMessages />} />
+          <Route path="/fraud" element={<FraudCenter />} />
+          <Route path="/assistant" element={<AIAssistant />} />
+          <Route path="/analytics" element={<Analytics />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/connection" element={<ConnectionPage />} />
+          <Route path="/tasks" element={<TasksPage />} />
+          <Route path="/deadlines" element={<DeadlinesPage />} />
+          <Route path="/alerts" element={<AlertsPage />} />
+        </Routes>
+      </ConnectionProvider>
+    </ToastProvider>
   );
 }

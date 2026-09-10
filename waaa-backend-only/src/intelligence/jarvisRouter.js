@@ -122,7 +122,8 @@ const GENERAL_KNOWLEDGE_TRIGGERS = [
 ];
 
 const WAAA_DIRECT_TRIGGERS = [
-  /what\s+happened\s+(today|yesterday|this\s+week|recently)/i,
+  /what\s+happened\s+(today|yesterday|this\s+week|recently|in\s+(my\s+)?groups?|in\s+(my\s+)?chats?)/i,
+  /summarize\s+(what\s+happened|my\s+groups?|my\s+chats?|today('s)?\s+groups?|recent\s+messages?|conversations?)/i,
   /what\s+do\s+i\s+need\s+to\s+do/i,
   /what\s+am\s+i\s+(forgetting|waiting\s+for|missing)/i,
   /any\s+(urgent|important|new)\s+(messages|alerts|updates)/i,

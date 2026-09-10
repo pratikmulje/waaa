@@ -122,7 +122,7 @@ app.use((err, req, res, next) => {
 });
 
 const HOST = "0.0.0.0";
-app.listen(Number(PORT), HOST, () => {
+const server = app.listen(Number(PORT), HOST, () => {
   console.log(`\n[api] WAAA API listening on http://${HOST}:${PORT}`);
   console.log(
     isAiConfigured()
@@ -130,3 +130,16 @@ app.listen(Number(PORT), HOST, () => {
       : "[api] AI (Gemini) is NOT configured — set GEMINI_API_KEY in .env to enable summarize/draft.\n"
   );
 });
+
+server.on("error", (err) => {
+  if (err.code === "EADDRINUSE") {
+    console.log(`\n⚠️  Port ${PORT} is already in use.`);
+    console.log(`💡 Note: If you already ran 'npm start', the WAAA unified runtime is already running the API server.`);
+    console.log(`   You do not need to run 'npm run api' separately!\n`);
+    process.exit(0);
+  } else {
+    console.error("[api] Server error:", err);
+    process.exit(1);
+  }
+});
+
