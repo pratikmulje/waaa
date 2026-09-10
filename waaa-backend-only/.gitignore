@@ -9,6 +9,9 @@ yarn-error.log*
 .env.*
 !.env.example
 
+waaa-backend-only/auth_info_backup/
+waaa-backend-only/auth_info/
+
 # Firebase / Google credentials
 firebase/serviceAccountKey.json
 **/serviceAccountKey.json
@@ -18,6 +21,7 @@ firebase/serviceAccountKey.json
 auth_info/
 auth_info/**
 creds.json
+auth_info_backup/
 
 # Local data storage (replaces Firestore — messages, conversations,
 # chat settings, connection state; also holds a per-collection .lock

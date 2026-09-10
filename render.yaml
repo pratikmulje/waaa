@@ -1,0 +1,32 @@
+# ==============================================================================
+# Render Blueprint Specification for WAAA Persistent Cloud Deployment (Phase 16)
+# ==============================================================================
+
+services:
+  - type: web
+    name: waaa-backend
+    env: node
+    rootDir: waaa-backend-only
+    plan: starter # Starter or higher supports Render Persistent Disks
+    region: oregon # or ohio, frankfurt, singapore
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: false
+    disk:
+      name: waaa-storage
+      mountPath: /var/data/waaa
+      sizeGB: 10
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: WAAA_STORAGE_DIR
+        value: /var/data/waaa
+      - key: BLOCKCHAIN_ENABLED
+        value: false
+      - key: GEMINI_API_KEY_1
+        sync: false # Set securely in Render dashboard
+      - key: GEMINI_API_KEY_2
+        sync: false # Set securely in Render dashboard
