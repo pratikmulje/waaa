@@ -1,6 +1,7 @@
 import React from "react";
 import { NavLink, Link } from "react-router-dom";
 import {
+  Home,
   MessageSquare,
   Flame,
   CheckSquare,
@@ -17,6 +18,7 @@ import { useConnection } from "../../context/ConnectionContext.jsx";
 import StatusDot from "../common/StatusDot.jsx";
 
 const NAV_MAIN = [
+  { to: "/", icon: Home, label: "Home", end: true },
   { to: "/chats", icon: MessageSquare, label: "Chats" },
   { to: "/important", icon: Flame, label: "Important" },
   { to: "/tasks", icon: CheckSquare, label: "Tasks" },
@@ -60,6 +62,7 @@ export default function Sidebar({ open, onClose }) {
           <NavLink
             key={item.to}
             to={item.to}
+            end={item.end}
             onClick={onClose}
             className={({ isActive }) =>
               `nav-item focus-ring ${isActive ? "nav-active" : ""}`

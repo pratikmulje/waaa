@@ -21,6 +21,16 @@ export function clockTime(iso) {
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
+export function fullDateTime(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  const dateStr = d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const timeStr = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return `${dateStr} · ${timeStr}`;
+}
+
+
 export const RISK_COLORS = {
   critical: { text: "text-red-400", bg: "bg-red-500/15", ring: "ring-red-500/30", bar: "#f87171" },
   high: { text: "text-orange-400", bg: "bg-orange-500/15", ring: "ring-orange-500/30", bar: "#fb923c" },
@@ -49,6 +59,15 @@ export const PRIORITY_LABELS = {
   low: "Low",
   normal: "Normal",
 };
+
+export function cleanSourceLabel(name) {
+  if (!name) return "Unknown";
+  if (name.includes("@lid") || /^\d{10,}$/.test(name)) return "Contact";
+  if (name.includes("@g.us")) return "Group chat";
+  if (name.includes("@newsletter")) return "Channel";
+  return name;
+}
+
 
 export function chatTypeLabel(type) {
   return { personal: "Personal", group: "Group", community: "Community", channel: "Channel" }[type] || "Unknown";

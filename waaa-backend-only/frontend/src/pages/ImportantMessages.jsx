@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Flame, Sparkles, ChevronRight } from "lucide-react";
+import { Flame, Sparkles, ArrowRight, Clock, User, MessageCircle } from "lucide-react";
 import AppShell from "../components/layout/AppShell.jsx";
 import EmptyState from "../components/common/EmptyState.jsx";
 import ErrorState from "../components/common/ErrorState.jsx";
@@ -8,7 +8,26 @@ import { SkeletonRow } from "../components/common/Skeleton.jsx";
 import SmartReplyDrawer from "../components/intelligence/SmartReplyDrawer.jsx";
 import { usePolling } from "../hooks/usePolling.js";
 import { getMessages } from "../api/messages.js";
-import { timeAgo } from "../utils/format.js";
+import { fullDateTime } from "../utils/format.js";
+
+function getHumanSender(m) {
+  // If sender is a human name and not an internal JID/number, use it
+  if (m.sender && !m.sender.includes("@") && !/^\d{10,}$/.test(m.sender)) {
+    return m.sender;
+  }
+  // If chatName is available and not a raw JID, use it
+  if (m.chatName && !m.chatName.includes("@") && !/^\d{10,}$/.test(m.chatName)) {
+    return m.chatName;
+  }
+  return "Unknown contact";
+}
+
+function getDisplayChat(m) {
+  if (m.chatName && !m.chatName.includes("@")) {
+    return m.chatName;
+  }
+  return null;
+}
 
 export default function ImportantMessages() {
   const [selected, setSelected] = useState(null);
@@ -30,8 +49,8 @@ export default function ImportantMessages() {
       {error && <ErrorState message="Couldn't load important messages." onRetry={reload} />}
 
       {!error && loading && (
-        <div className="space-y-2">
-          {Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} />)}
+        <div className="space-y-3">
+          {Array.from({ length: 4 }).map((_, i) => <SkeletonRow key={i} />)}
         </div>
       )}
 
@@ -44,84 +63,106 @@ export default function ImportantMessages() {
       )}
 
       {!error && !loading && important.length > 0 && (
-        <div className="space-y-3">
-          <p className="text-xs text-ink-faint mb-4">
-            {important.length} important message{important.length !== 1 ? "s" : ""} · sorted by priority
-          </p>
+        <div className="space-y-3 max-w-3xl">
+          <div className="flex items-center justify-between pb-1">
+            <p className="text-xs font-medium text-ink-muted">
+              {important.length} important message{important.length !== 1 ? "s" : ""}
+            </p>
+            <span className="text-[11px] text-ink-faint">Sorted by priority</span>
+          </div>
+
           {important.map((m) => {
             const level = m.importanceAnalysis?.level || "normal";
             const score = m.importanceAnalysis?.finalScore ?? 0;
-            const isHigh = level === "high";
-            const isMedium = level === "medium";
+            const isHigh = level === "high" || score >= 75;
+            const senderName = getHumanSender(m);
+            const chatName = getDisplayChat(m);
+            const rawTimestamp = m.createdAt || m.receivedAt;
+            const dateDisplay = fullDateTime(rawTimestamp);
+            const reasons = m.importanceAnalysis?.reasons || [];
 
             return (
               <div
                 key={m.id}
-                className={`relative flex flex-col rounded-2xl border bg-surface-panel p-4 transition-all animate-slide-up ${
-                  isHigh
-                    ? "border-violet-glow/20 importance-accent"
-                    : isMedium
-                    ? "border-accent/15"
-                    : "border-surface-border"
-                }`}
+                className="group relative rounded-2xl border border-surface-border bg-gradient-to-b from-surface-raised to-surface-panel p-5 shadow-panel transition-all duration-200 hover:border-accent/30 hover:shadow-glow-sm"
               >
-                {/* Header row */}
-                <div className="mb-2.5 flex items-center justify-between gap-2">
+                {/* Header row: Priority Badge + Score + Date/Time */}
+                <div className="mb-3 flex items-center justify-between gap-3 border-b border-surface-border/60 pb-3">
                   <div className="flex items-center gap-2">
-                    {isHigh && (
-                      <span className="flex items-center gap-1 rounded-full bg-violet-glow/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-glow ring-1 ring-violet-glow/20">
-                        <Flame className="h-3 w-3" />
-                        High priority
-                      </span>
-                    )}
-                    {isMedium && (
-                      <span className="flex items-center gap-1 rounded-full bg-accent/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent ring-1 ring-accent/20">
-                        Medium
-                      </span>
-                    )}
-                    <span className="text-[10px] text-ink-faint">Score {score}</span>
+                    <span
+                      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-semibold tracking-wide ${
+                        isHigh
+                          ? "bg-accent/15 text-accent ring-1 ring-accent/30"
+                          : "bg-surface-raised text-ink-muted ring-1 ring-surface-border"
+                      }`}
+                    >
+                      <Flame className="h-3 w-3 shrink-0" />
+                      {isHigh ? "High priority" : "Medium priority"}
+                    </span>
+                    <span className="text-[11px] font-mono text-ink-faint">
+                      {score}/100
+                    </span>
                   </div>
-                  <span className="text-[10px] text-ink-faint shrink-0">{timeAgo(m.createdAt || m.receivedAt)}</span>
+
+                  <div className="flex items-center gap-1 text-[11px] text-ink-faint">
+                    <Clock className="h-3 w-3 shrink-0" />
+                    <span>{dateDisplay}</span>
+                  </div>
                 </div>
 
-                {/* Message text */}
-                <p className="text-sm leading-relaxed text-ink line-clamp-3">{m.text}</p>
+                {/* Message preview text */}
+                <div className="mb-4">
+                  <p className="text-sm font-normal leading-relaxed text-ink line-clamp-4">
+                    {m.text}
+                  </p>
+                </div>
 
-                {/* Reason tags */}
-                {m.importanceAnalysis?.reasons?.length > 0 && (
-                  <div className="mt-3 flex flex-wrap gap-1.5">
-                    {m.importanceAnalysis.reasons.map((r, i) => (
-                      <span
-                        key={i}
-                        className="rounded-full bg-surface-raised px-2 py-0.5 text-[10px] text-ink-faint ring-1 ring-surface-border"
-                      >
-                        {r}
-                      </span>
-                    ))}
+                {/* Sender & Source Metadata */}
+                <div className="mb-3.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-muted">
+                  <div className="flex items-center gap-1.5">
+                    <User className="h-3.5 w-3.5 text-accent shrink-0" />
+                    <span className="font-medium text-ink">{senderName}</span>
+                  </div>
+                  {chatName && chatName !== senderName && (
+                    <div className="flex items-center gap-1.5 text-ink-faint">
+                      <MessageCircle className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate max-w-[200px]">{chatName}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Why it is important (Reasons) */}
+                {reasons.length > 0 && (
+                  <div className="mb-4 rounded-xl border border-accent/15 bg-accent/5 px-3.5 py-2.5 text-xs">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-accent mb-1">
+                      Why it is important
+                    </p>
+                    <div className="space-y-1">
+                      {reasons.map((r, i) => (
+                        <p key={i} className="text-ink-muted leading-relaxed">
+                          {r.replace(/^gemini:\s*/i, "")}
+                        </p>
+                      ))}
+                    </div>
                   </div>
                 )}
 
-                {/* Source */}
-                <p className="mt-2.5 text-[11px] text-ink-muted">
-                  From <span className="font-medium text-ink">{m.chatName}</span>
-                  {m.sender && ` · ${m.sender}`}
-                </p>
-
-                {/* Actions */}
-                <div className="mt-3 flex gap-2">
-                  <button
-                    onClick={() => navigate("/chats", { state: { chatId: m.chatId } })}
-                    className="focus-ring flex flex-1 items-center justify-center gap-1 rounded-xl border border-surface-border py-2 text-xs font-medium text-ink-muted hover:bg-surface-hover hover:text-ink transition-colors"
-                  >
-                    Open chat
-                    <ChevronRight className="h-3 w-3" />
-                  </button>
+                {/* Action footer */}
+                <div className="flex items-center justify-between pt-1 border-t border-surface-border/40">
                   <button
                     onClick={() => setSelected(m)}
-                    className="focus-ring flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-accent/20 bg-accent/8 py-2 text-xs font-medium text-accent hover:bg-accent/15 transition-colors"
+                    className="focus-ring inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-ink-muted hover:bg-surface-hover hover:text-ink transition-colors"
                   >
-                    <Sparkles className="h-3.5 w-3.5" strokeWidth={1.75} />
+                    <Sparkles className="h-3.5 w-3.5 text-accent" />
                     Smart Reply
+                  </button>
+
+                  <button
+                    onClick={() => navigate("/chats", { state: { chatId: m.chatId, messageId: m.id } })}
+                    className="focus-ring inline-flex items-center gap-1.5 rounded-xl border border-accent/25 bg-accent/10 px-3.5 py-1.5 text-xs font-medium text-accent hover:bg-accent/20 hover:border-accent/40 transition-all"
+                  >
+                    <span>Open chat</span>
+                    <ArrowRight className="h-3.5 w-3.5" />
                   </button>
                 </div>
               </div>

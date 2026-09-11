@@ -4,8 +4,8 @@ import AppShell from "../components/layout/AppShell.jsx";
 import EmptyState from "../components/common/EmptyState.jsx";
 import ErrorState from "../components/common/ErrorState.jsx";
 import { SkeletonRow } from "../components/common/Skeleton.jsx";
-import { usePolling } from "../hooks/usePolling.js";
 import { getDeadlines } from "../api/intelligence.js";
+import { cleanSourceLabel } from "../utils/format.js";
 
 function urgencyClass(dueDate) {
   if (!dueDate) return { border: "border-surface-border", label: "", labelClass: "" };
@@ -38,7 +38,7 @@ function DeadlineItem({ deadline }) {
           </p>
           {deadline.chatName && (
             <p className="mt-1 text-[11px] text-ink-faint">
-              Source: <span className="text-ink-muted">{deadline.chatName}</span>
+              Source: <span className="text-ink-muted">{cleanSourceLabel(deadline.chatName)}</span>
             </p>
           )}
         </div>

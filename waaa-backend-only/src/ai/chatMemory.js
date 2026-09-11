@@ -95,7 +95,10 @@ export function memoryMatchesText(memory, text) {
 }
 
 export function findMemoryMatches(memory, text) {
-  const lower = text.toLowerCase();
+  if (!memory || !memory.entities || !Array.isArray(memory.activeTopics)) {
+    return { matchedEntity: null, matchedTopic: null };
+  }
+  const lower = String(text || "").toLowerCase();
 
   const matchedEntity = Object.keys(memory.entities).find((e) =>
     lower.includes(e.toLowerCase())
@@ -230,7 +233,7 @@ export async function updateWordFreq(chatId, text) {
 // Returns significant words from `text` that have appeared 2+ times in this
 // chat's history. Used by the local scorer to boost repeated-topic messages.
 export function getFreqMatches(memory, text) {
-  const wordFreq = memory.wordFreq || {};
+  const wordFreq = memory?.wordFreq || {};
   const words = extractSignificantWords(text);
   return words.filter((w) => (wordFreq[w]?.count || 0) >= 2);
 }

@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Zap, RotateCw, Copy, Check } from "lucide-react";
+import { Send, Zap, RotateCw, Copy, Check, Trash2 } from "lucide-react";
 import AppShell from "../components/layout/AppShell.jsx";
 import ThinkingDots from "../components/common/ThinkingDots.jsx";
 import DateSeparator, { groupMessagesByDate } from "../components/common/DateSeparator.jsx";
 import { askWAAA } from "../api/ai.js";
-import { clockTime } from "../utils/format.js";
+import { clockTime, cleanSourceLabel } from "../utils/format.js";
 
 const EXAMPLES = [
   "What messages need my attention today?",
@@ -15,8 +15,21 @@ const EXAMPLES = [
   "Any suspicious messages I should know about?",
 ];
 
-// Stable session ID per page load
-const SESSION_ID = `session-${Date.now()}`;
+const STORAGE_KEY = "waaa_ai_assistant_session_v1";
+
+function loadSavedSession() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return { messages: [], sessionId: `session-${Date.now()}` };
+    const parsed = JSON.parse(raw);
+    return {
+      messages: Array.isArray(parsed.messages) ? parsed.messages : [],
+      sessionId: typeof parsed.sessionId === "string" ? parsed.sessionId : `session-${Date.now()}`,
+    };
+  } catch {
+    return { messages: [], sessionId: `session-${Date.now()}` };
+  }
+}
 
 function useClipboard(text, duration = 2000) {
   const [copied, setCopied] = useState(false);
@@ -113,7 +126,7 @@ function StructuredResult({ data }) {
                   </p>
                 )}
                 {item.chatName && (
-                  <p className="mt-0.5 text-[10px] text-ink-faint">Source: {item.chatName}</p>
+                  <p className="mt-0.5 text-[10px] text-ink-faint">Source: {cleanSourceLabel(item.chatName)}</p>
                 )}
               </div>
             );
@@ -133,17 +146,39 @@ function StructuredResult({ data }) {
 }
 
 export default function AIAssistant() {
-  const [messages, setMessages] = useState([]);
+  const [sessionData] = useState(loadSavedSession);
+  const [messages, setMessages] = useState(sessionData.messages);
+  const [sessionId, setSessionId] = useState(sessionData.sessionId);
   const [input, setInput] = useState("");
   const [thinking, setThinking] = useState(false);
   const [error, setError] = useState(null);
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
 
+  // Persist messages & session to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ messages, sessionId }));
+    } catch {
+      // ignore storage quota error
+    }
+  }, [messages, sessionId]);
+
   // Auto-scroll to bottom on new messages
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, thinking]);
+
+  const clearChat = useCallback(() => {
+    const newSessionId = `session-${Date.now()}`;
+    setMessages([]);
+    setSessionId(newSessionId);
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // ignore
+    }
+  }, []);
 
   const sendMessage = useCallback(async (query) => {
     const text = (query || input).trim();
@@ -157,7 +192,7 @@ export default function AIAssistant() {
     setThinking(true);
 
     try {
-      const res = await askWAAA(text, { sessionId: SESSION_ID, mode: "SMART_AUTO" });
+      const res = await askWAAA(text, { sessionId, mode: "SMART_AUTO" });
 
       // Determine if result is structured or plain text
       const hasStructured =
@@ -186,7 +221,7 @@ export default function AIAssistant() {
       setThinking(false);
       inputRef.current?.focus();
     }
-  }, [input, thinking]);
+  }, [input, thinking, sessionId]);
 
   const handleKeyDown = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -233,15 +268,28 @@ export default function AIAssistant() {
           )}
 
           {/* Conversation */}
+          {!isEmpty && (
+            <div className="flex justify-end pb-1">
+              <button
+                onClick={clearChat}
+                className="focus-ring flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-medium text-ink-faint hover:bg-surface-hover hover:text-ink-muted transition-colors"
+                title="Clear conversation"
+              >
+                <Trash2 className="h-3 w-3" />
+                <span>Clear chat</span>
+              </button>
+            </div>
+          )}
+
           {!isEmpty &&
-            groups.map((group) => (
-              <React.Fragment key={group.dateLabel}>
-                <DateSeparator label={group.dateLabel} />
-                {group.messages.map((msg, i) =>
+            groups.map((group, gi) => (
+              <React.Fragment key={group.dateLabel ?? `group-${gi}`}>
+                {group.dateLabel && <DateSeparator label={group.dateLabel} />}
+                {group.messages.map((msg) =>
                   msg.role === "user" ? (
-                    <UserMessage key={i} msg={msg} />
+                    <UserMessage key={`${msg.ts}-${msg.role}`} msg={msg} />
                   ) : (
-                    <WaaaMessage key={i} msg={msg} />
+                    <WaaaMessage key={`${msg.ts}-${msg.role}`} msg={msg} />
                   )
                 )}
               </React.Fragment>

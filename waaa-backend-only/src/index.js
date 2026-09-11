@@ -2182,6 +2182,7 @@ import {
 import { hub } from "./api/sseHub.js";
 
 import { getChatMemory, updateWordFreq } from "./ai/chatMemory.js";
+import { isDuplicateMessage } from "./db/dataScaling.js";
 
 
 import {
@@ -3088,17 +3089,15 @@ async function analyzeImportance(
     );
 
 
-  const ruleScore =
-    Math.min(
-      ruleResult.score,
-      100
-    );
+  const ruleScore = Math.max(0, Math.min(100, Math.round(Number.isFinite(ruleResult?.score) ? ruleResult.score : 0)));
+  const mlScoreValue = Math.max(0, Math.min(100, Math.round(Number.isFinite(mlScore) ? mlScore : 0)));
 
-
-  const finalScore =
+  const rawFinal =
     ruleScore >= 30
-      ? (mlScore > 0 ? Math.max(ruleScore, Math.round(ruleScore * 0.5 + mlScore * 0.5)) : ruleScore)
-      : (mlScore > 0 ? Math.round(ruleScore * 0.4 + mlScore * 0.6) : ruleScore);
+      ? (mlScoreValue > 0 ? Math.max(ruleScore, Math.round(ruleScore * 0.5 + mlScoreValue * 0.5)) : ruleScore)
+      : (mlScoreValue > 0 ? Math.round(ruleScore * 0.4 + mlScoreValue * 0.6) : ruleScore);
+
+  const finalScore = Math.max(0, Math.min(100, Math.round(Number.isFinite(rawFinal) ? rawFinal : ruleScore)));
 
   let level = "normal";
 
@@ -3381,11 +3380,11 @@ async function processIncomingMessage(
     // =================================================
 
     const sender =
-      msg.pushName ||
-
-      msg.key.participant ||
-
-      chatId;
+      msg.key?.fromMe
+        ? (msg.pushName || "You")
+        : (msg.pushName ||
+           msg.key.participant ||
+           chatId);
 
 
     // =================================================
@@ -3487,7 +3486,7 @@ async function processIncomingMessage(
         );
 
       importanceAnalysis.finalScore =
-        localResult.score;
+        Math.max(0, Math.min(100, Math.round(Number.isFinite(localResult.score) ? localResult.score : (importanceAnalysis.finalScore || 0))));
 
       importanceAnalysis.level =
         localResult.level;
@@ -3540,8 +3539,9 @@ async function processIncomingMessage(
             recordPerChatCall(chatId);
 
             // Merge Gemini's verdict into importanceAnalysis
+            const gemScore = geminiResult.importanceScore ?? localResult.score;
             importanceAnalysis.finalScore =
-              geminiResult.importanceScore ?? localResult.score;
+              Math.max(0, Math.min(100, Math.round(Number.isFinite(gemScore) ? gemScore : 0)));
 
             importanceAnalysis.level =
               geminiResult.importanceLevel ?? localResult.level;
@@ -3793,8 +3793,12 @@ async function processIncomingMessage(
       sender,
 
       senderJid:
-        msg.key.participant ||
-        chatId,
+        msg.key.fromMe
+          ? (sock?.user?.id || "me")
+          : (msg.key.participant || chatId),
+
+      fromMe:
+        Boolean(msg.key.fromMe),
 
 
       // Message
@@ -4161,7 +4165,8 @@ async function start() {
 
 
         if (
-          type !== "notify"
+          type !== "notify" &&
+          type !== "append"
         ) {
 
           console.log(
@@ -4199,6 +4204,14 @@ async function start() {
               "[skip] No chat ID"
             );
 
+            continue;
+          }
+
+          const messageId = msg.key?.id;
+          if (messageId && isDuplicateMessage(messageId)) {
+            console.log(
+              `[skip] Duplicate message skipped: ${messageId}`
+            );
             continue;
           }
 
@@ -4245,6 +4258,10 @@ async function start() {
               }
             }
 
+            await processIncomingMessage(
+              sock,
+              msg
+            );
 
             continue;
           }
@@ -4289,6 +4306,10 @@ console.log(
   "==========================================\n"
 );
 
+
+export function getSock() {
+  return currentSock;
+}
 
 export { start };
 

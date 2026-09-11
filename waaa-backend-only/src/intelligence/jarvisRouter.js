@@ -28,6 +28,7 @@ import { askAI } from "../ai/geminiClient.js";
 import { getCooldownStatus } from "../ai/geminiCooldown.js";
 import { smartRetrieve, detectRetrievalIntent, extractTopicFromQuery } from "./smartRetrieval.js";
 import { resolveCanonicalProjectId } from "./projectIntelligence.js";
+import { normalizeQueryTypos } from "./identityResolver.js";
 
 export const INTENT_TYPES = Object.freeze({
   NORMAL_AI: "NORMAL_AI",
@@ -115,23 +116,36 @@ export function clearWorkingMemory(sessionId = "default") {
 const GENERAL_KNOWLEDGE_TRIGGERS = [
   /explain\s+(react|vue|angular|javascript|python|c\+\+|node|sql|machine\s+learning|docker|kubernetes|pointer|algorithm|recursion|state|useeffect|usestate)/i,
   /write\s+(a\s+)?(c\+\+|python|js|javascript|java|code|script|function|program|regex)/i,
-  /what\s+is\s+(machine\s+learning|quantum|blockchain|recursion|dfs|bfs|oop|solid|polymorphism|rest\s+api|graphql)/i,
+  /what\s+is\s+(a\s+chat|group\s+theory|machine\s+learning|quantum|blockchain|recursion|dfs|bfs|oop|solid|polymorphism|rest\s+api|graphql)/i,
   /how\s+to\s+(cook|bake|solve|calculate|derive|install|code|implement\s+a\s+linked\s+list)/i,
   /who\s+was\s+(albert\s+einstein|newton|curie|turing|elon|shakespeare)/i,
   /difference\s+between\s+(var\s+and\s+let|process\s+and\s+thread|tcp\s+and\s+udp|sql\s+and\s+nosql)/i,
+  /summarize\s+(this|the\s+following)\s+(paragraph|text|article|essay|document\s+below|code):/i,
 ];
 
 const WAAA_DIRECT_TRIGGERS = [
-  /what\s+happened\s+(today|yesterday|this\s+week|recently|in\s+(my\s+)?groups?|in\s+(my\s+)?chats?)/i,
-  /summarize\s+(what\s+happened|my\s+groups?|my\s+chats?|today('s)?\s+groups?|recent\s+messages?|conversations?)/i,
+  /what\s+happened\s+(today|yesterday|this\s+week|recently|in\s+(?:the\s+|my\s+|our\s+)?(?:groups?|chats?|[A-Za-z0-9_\-]+))/i,
+  /(?:summarize|summarise|summary|overview|recap|catch\s*up)\s+(?:of\s+|about\s+|for\s+|what\s+happened\s+in\s+)?(?:the\s+|my\s+|our\s+)?(?:groups?|chats?|messages?|conversations?|[A-Za-z0-9_\-]+)/i,
+  /(?:from|in|about|regarding)\s+(?:the\s+|my\s+|our\s+)?([A-Za-z0-9_\-]+(?:\s+[A-Za-z0-9_\-]+){0,2})\s+(?:group|chat|channel|conversation)\s+(?:summarize|summarise|summary|what\s+happened|chats?|messages?|discuss)/i,
+  /(?:summarize|summarise|summary)\s+(?:the\s+)?(?:chats?|messages?)\s+(?:of|from|by)\s+/i,
+  /(?:chats?|messages?)\s+(?:of|from|by)\s+[A-Za-z0-9_\-]+/i,
+  /[A-Za-z0-9_\-]+(?:'s)\s+(?:chats?|messages?)/i,
+  /tell\s+me\s+what\s+happened\s+in\s+(?:the\s+|my\s+)?(?:groups?|chats?|[A-Za-z0-9_\-]+)/i,
+  /what\s+did\s+(?:they|we|[A-Za-z0-9_\-]+)\s+(?:discuss|talk\s+about|say|decide|send)\s+(?:in\s+(?:the\s+|my\s+)?(?:groups?|chats?|[A-Za-z0-9_\-]+))?/i,
+  /(?:what|which|show|any|get)\s+(?:are\s+|were\s+|the\s+)?(?:messages?|chats?|updates?|tasks?).*(?:need\s+(?:my\s+)?attention|require\s+attention|important|urgent|action)/i,
+  /(?:what|anything)\s+(?:needs|requires)\s+(?:my\s+)?attention/i,
+  /(?:what\s+did\s+i\s+miss|what\s+is\s+important|what\s+should\s+i\s+(?:look\s+at|check)|what\s+needs\s+action)\s*(?:today|recently|now)?/i,
+  /(?:show|find|search|get|list|give)\s+(?:me\s+)?(?:the\s+)?(?:all\s+)?(?:recent\s+|important\s+|urgent\s+)?messages?\s+(?:from|in|about|regarding)\s+/i,
+  /what\s+(?:are|were)\s+the\s+(?:important|urgent|key|latest|recent)\s+messages/i,
   /what\s+do\s+i\s+need\s+to\s+do/i,
   /what\s+am\s+i\s+(forgetting|waiting\s+for|missing)/i,
-  /any\s+(urgent|important|new)\s+(messages|alerts|updates)/i,
+  /any\s+(urgent|important|new|suspicious)\s+(messages|alerts|updates)/i,
   /who\s+am\s+i\s+waiting\s+for/i,
-  /what('s|\s+is)\s+happening\s+with\s+(sih|vierp|waaa|feedback|[A-Z]{2,})/i,
+  /what('s|\s+is)\s+happening\s+with\s+(sih|vierp|waaa|feedback|[A-Za-z0-9_\-]+)/i,
   /show\s+(my\s+)?(tasks|blockers|deadlines|commitments|decisions|alerts|watches)/i,
-  /my\s+(pending\s+tasks|deadlines|reminders)/i,
+  /my\s+(pending\s+tasks|deadlines|reminders|messages|groups|chats)/i,
   /what\s+was\s+in\s+that\s+(screenshot|image|pdf|document)/i,
+  /(?:in|from)\s+(?:my\s+|our\s+)?(?:whatsapp|chats?|groups?)/i,
 ];
 
 const MIXED_AI_TRIGGERS = [
@@ -157,37 +171,41 @@ export function classifyIntent(query, options = {}) {
     return INTENT_TYPES.WAAA_CONTEXT;
   }
 
-  const clean = String(query || "").trim();
+  const clean = normalizeQueryTypos(String(query || "").trim());
 
-  // 1. Check Mixed AI patterns
-  for (const trigger of MIXED_AI_TRIGGERS) {
-    if (trigger.test(clean)) {
-      return INTENT_TYPES.MIXED_AI;
-    }
-  }
-
-  // 2. Check Direct WAAA patterns
-  for (const trigger of WAAA_DIRECT_TRIGGERS) {
-    if (trigger.test(clean)) {
-      return INTENT_TYPES.WAAA_CONTEXT;
-    }
-  }
-
-  // 3. Check General Knowledge / Programming / Non-WhatsApp patterns
+  // 1. Check General Knowledge / Programming triggers FIRST if query explicitly asks generic theory/definition
   for (const trigger of GENERAL_KNOWLEDGE_TRIGGERS) {
     if (trigger.test(clean)) {
       return INTENT_TYPES.NORMAL_AI;
     }
   }
 
-  // 4. Check known project/person mentions
-  const topicHint = extractTopicFromQuery(clean);
-  if (topicHint && (topicHint.kind === "project" || /sih|vierp|waaa|feedback/i.test(clean))) {
-    // If asking for advice/evaluation involving the project -> Mixed, else WAAA
-    if (/should|how\s+can|how\s+should|recommend|suggest|analyze|evaluate/i.test(clean)) {
+  // 2. Check Mixed AI patterns
+  for (const trigger of MIXED_AI_TRIGGERS) {
+    if (trigger.test(clean)) {
       return INTENT_TYPES.MIXED_AI;
     }
-    return INTENT_TYPES.WAAA_CONTEXT;
+  }
+
+  // 3. Check Direct WAAA patterns
+  for (const trigger of WAAA_DIRECT_TRIGGERS) {
+    if (trigger.test(clean)) {
+      return INTENT_TYPES.WAAA_CONTEXT;
+    }
+  }
+
+  // 4. Check known project/person/chat mentions
+  const topicHint = extractTopicFromQuery(clean);
+  if (topicHint) {
+    if (topicHint.kind === "project" || /sih|vierp|waaa|feedback/i.test(clean)) {
+      if (/should|how\s+can|how\s+should|recommend|suggest|analyze|evaluate/i.test(clean)) {
+        return INTENT_TYPES.MIXED_AI;
+      }
+      return INTENT_TYPES.WAAA_CONTEXT;
+    }
+    if (topicHint.kind === "chat_or_topic" || topicHint.kind === "person") {
+      return INTENT_TYPES.WAAA_CONTEXT;
+    }
   }
 
   // 5. Check smartRetrieval intent
@@ -197,8 +215,8 @@ export function classifyIntent(query, options = {}) {
   }
 
   // 6. Check follow-ups against conversational memory
-  if (memory && (memory.previousProject || memory.previousPerson || memory.previousTopic)) {
-    if (/\b(he|she|they|him|her|it|backend|frontend|team|repo|code|api|db|database)\b/i.test(clean)) {
+  if (memory && (memory.previousProject || memory.previousPerson || memory.previousTopic || memory.previousChatId)) {
+    if (/\b(he|she|they|him|her|it|backend|frontend|team|repo|code|api|db|database|chat|group|messages?)\b/i.test(clean)) {
       if (/suggest|recommend|evaluate|should|how\s+to|why/i.test(clean)) {
         return INTENT_TYPES.MIXED_AI;
       }

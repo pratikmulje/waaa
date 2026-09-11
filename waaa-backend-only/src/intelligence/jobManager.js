@@ -504,3 +504,63 @@ registerJobExecutor("submit_blockchain_proof", async (unit) => {
   return { status: "PROVEN", proofId: result.proofId, contentHash: result.contentHash, proofStatus: result.status };
 });
 
+// ── Background Job Worker (Phase 6 / Runtime Integration) ─────────────────────
+
+let workerTimer = null;
+let isWorkerProcessing = false;
+
+/**
+ * Executes one pending job cycle.
+ */
+export async function processNextPendingJob() {
+  if (isWorkerProcessing) return null;
+
+  isWorkerProcessing = true;
+  try {
+    const jobs = await loadJobs();
+    // Select the first eligible pending job (ignores paused, done, failed, cancelled)
+    const pendingJob = jobs.find((j) => j.status === "pending" && !j.lock);
+    if (!pendingJob) return null;
+
+    console.log(`[JobWorker] ⏳ Found pending job ${pendingJob.jobId} (${pendingJob.type}). Executing...`);
+    const finishedJob = await runJob(pendingJob.jobId, { workerId: "bg_worker_daemon" });
+    console.log(`[JobWorker] ✅ Job ${pendingJob.jobId} processed: status is now ${finishedJob?.status}`);
+    return finishedJob;
+  } catch (err) {
+    console.warn(`[JobWorker] ⚠️ Error during background job tick:`, err.message);
+    return null;
+  } finally {
+    isWorkerProcessing = false;
+  }
+}
+
+/**
+ * Starts the lightweight background job runner tick.
+ * @param {number} intervalMs - Polling interval (default 30 seconds)
+ */
+export function startBackgroundJobWorker(intervalMs = 30000) {
+  if (workerTimer) return;
+
+  console.log(`[JobWorker] 🚀 Background job worker started (interval: ${intervalMs / 1000}s)`);
+  // Run once shortly after startup
+  setTimeout(() => {
+    processNextPendingJob().catch(() => {});
+  }, 5000);
+
+  workerTimer = setInterval(() => {
+    processNextPendingJob().catch(() => {});
+  }, intervalMs);
+}
+
+/**
+ * Stops the background job worker.
+ */
+export function stopBackgroundJobWorker() {
+  if (workerTimer) {
+    clearInterval(workerTimer);
+    workerTimer = null;
+    console.log(`[JobWorker] 🛑 Background job worker stopped.`);
+  }
+}
+
+

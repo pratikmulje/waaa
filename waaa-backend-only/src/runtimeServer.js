@@ -23,7 +23,7 @@ import { getStorageInfo } from "./intelligence/storageConfig.js";
 import { startDataSync } from "./api/dataSync.js";
 import { startConnectionSync } from "./api/connectionSync.js";
 import { isConfigured as isAiConfigured } from "./ai/geminiClient.js";
-import { recoverInterruptedJobs } from "./intelligence/jobManager.js";
+import { recoverInterruptedJobs, startBackgroundJobWorker, stopBackgroundJobWorker } from "./intelligence/jobManager.js";
 import { startDeadlineMonitor, stopDeadlineMonitor } from "./intelligence/deadlineMonitor.js";
 import { userContextMiddleware } from "./intelligence/userContext.js";
 import { listUserSessions, disconnectUserSession } from "./session/sessionManager.js";
@@ -67,6 +67,7 @@ startConnectionSync();
 startDataSync();
 recoverInterruptedJobs().catch((err) => console.error("[Runtime] Failed to recover interrupted jobs:", err.message));
 startDeadlineMonitor();
+startBackgroundJobWorker();
 
 // Start persistent WhatsApp bot (Baileys session)
 startWhatsAppBot().catch((err) => console.error("[Runtime] WhatsApp bot start failed:", err.message));
@@ -177,6 +178,7 @@ export async function gracefulShutdown(signal = "SIGTERM") {
   try {
     // 1. Stop background loops
     stopDeadlineMonitor();
+    stopBackgroundJobWorker();
 
     // 2. Disconnect active WhatsApp sessions cleanly
     const sessions = listUserSessions();

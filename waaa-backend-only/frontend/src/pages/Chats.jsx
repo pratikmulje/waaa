@@ -1,6 +1,6 @@
-import React, { useState, useMemo, useRef, useEffect } from "react";
+import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useLocation } from "react-router-dom";
-import { Search, MessageSquare, Star, Sparkles, Users, Hash, Radio } from "lucide-react";
+import { Search, MessageSquare, Star, Sparkles, Users, Hash, Radio, Send } from "lucide-react";
 import AppShell from "../components/layout/AppShell.jsx";
 import IntelligenceDrawer from "../components/intelligence/IntelligenceDrawer.jsx";
 import SummaryPanel from "../components/intelligence/SummaryPanel.jsx";
@@ -13,6 +13,7 @@ import { useSSE } from "../hooks/useSSE.js";
 import { getConversations, getConversationMessages } from "../api/conversations.js";
 import { setChatPriorityLevel } from "../api/chats.js";
 import { summarizeChat } from "../api/ai.js";
+import { sendWhatsAppMessage } from "../api/messages.js";
 import { clockTime, timeAgo, chatTypeLabel, PRIORITY_COLORS } from "../utils/format.js";
 import { useToast } from "../context/ToastContext.jsx";
 import PriorityLevelSelect from "../components/common/PriorityLevelSelect.jsx";
@@ -72,47 +73,55 @@ function ConvRow({ conv, active, onClick }) {
   );
 }
 
-function MsgBubble({ message, onSelect }) {
+function MsgBubble({ message, onSelect, isHighlighted }) {
   const isSelf = message.fromMe === true;
   const time = clockTime(message.createdAt || message.receivedAt);
 
   return (
-    <button
-      onClick={() => onSelect(message)}
-      className={`w-full text-left focus:outline-none group animate-slide-up ${
-        isSelf ? "flex flex-col items-end" : ""
+    <div
+      id={`msg-${message.id}`}
+      data-message-id={message.id}
+      className={`w-full transition-all duration-500 rounded-2xl ${
+        isHighlighted ? "ring-2 ring-accent bg-accent/10 p-1.5 -m-1.5 shadow-[0_0_20px_rgba(56,189,248,0.3)] animate-pulse" : ""
       }`}
     >
-      <div className={`max-w-[80%] ${isSelf ? "" : ""}`}>
-        <div className={`flex items-baseline gap-2 mb-1 ${isSelf ? "justify-end" : ""}`}>
-          {!isSelf && (
-            <span className="text-[11px] font-semibold text-ink-muted">{message.sender}</span>
-          )}
-          <span className="text-[10px] text-ink-faint">{time}</span>
-          {isSelf && (
-            <span className="text-[11px] font-semibold text-ink-muted">You</span>
-          )}
-        </div>
-        <div className={isSelf ? "bubble-user text-left" : "bubble-waaa"}>
-          <p className="text-sm leading-relaxed">{message.text}</p>
-        </div>
-        {/* Importance / risk badges (if present) */}
-        {(message.importanceAnalysis?.level === "high" || (message.fraudAnalysis?.riskScore ?? 0) >= 60) && (
-          <div className="mt-1.5 flex flex-wrap gap-1">
-            {message.importanceAnalysis?.level === "high" && (
-              <span className="rounded-full bg-violet-glow/10 px-2 py-0.5 text-[9px] font-semibold text-violet-glow ring-1 ring-violet-glow/20">
-                Important
-              </span>
+      <button
+        onClick={() => onSelect(message)}
+        className={`w-full text-left focus:outline-none group animate-slide-up ${
+          isSelf ? "flex flex-col items-end" : ""
+        }`}
+      >
+        <div className={`max-w-[80%] ${isSelf ? "" : ""}`}>
+          <div className={`flex items-baseline gap-2 mb-1 ${isSelf ? "justify-end" : ""}`}>
+            {!isSelf && (
+              <span className="text-[11px] font-semibold text-ink-muted">{message.sender}</span>
             )}
-            {(message.fraudAnalysis?.riskScore ?? 0) >= 60 && (
-              <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-[9px] font-semibold text-red-400 ring-1 ring-red-500/20">
-                Risk
-              </span>
+            <span className="text-[10px] text-ink-faint">{time}</span>
+            {isSelf && (
+              <span className="text-[11px] font-semibold text-ink-muted">You</span>
             )}
           </div>
-        )}
-      </div>
-    </button>
+          <div className={isSelf ? "bubble-user text-left" : "bubble-waaa"}>
+            <p className="text-sm leading-relaxed">{message.text}</p>
+          </div>
+          {/* Importance / risk badges (if present) */}
+          {(message.importanceAnalysis?.level === "high" || (message.fraudAnalysis?.riskScore ?? 0) >= 60) && (
+            <div className="mt-1.5 flex flex-wrap gap-1">
+              {message.importanceAnalysis?.level === "high" && (
+                <span className="rounded-full bg-violet-glow/10 px-2 py-0.5 text-[9px] font-semibold text-violet-glow ring-1 ring-violet-glow/20">
+                  Important
+                </span>
+              )}
+              {(message.fraudAnalysis?.riskScore ?? 0) >= 60 && (
+                <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-[9px] font-semibold text-red-400 ring-1 ring-red-500/20">
+                  Risk
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      </button>
+    </div>
   );
 }
 
@@ -126,6 +135,15 @@ export default function Chats({ priorityOnly = false }) {
   const [selectedChatId, setSelectedChatId] = useState(location.state?.chatId || null);
   const [selectedMessage, setSelectedMessage] = useState(null);
   const [summaryState, setSummaryState] = useState(null);
+  const [compose, setCompose] = useState("");
+  const [sending, setSending] = useState(false);
+  const composeRef = useRef(null);
+
+  useEffect(() => {
+    if (location.state?.chatId) {
+      setSelectedChatId(location.state.chatId);
+    }
+  }, [location.state?.chatId]);
 
   const params = useMemo(() => {
     const p = { limit: 200 };
@@ -153,10 +171,33 @@ export default function Chats({ priorityOnly = false }) {
     reload();
   });
 
-  // Auto-scroll when messages load
+  const [highlightedMessageId, setHighlightedMessageId] = useState(location.state?.messageId || null);
+  const targetMessageId = location.state?.messageId;
+
+  // Auto-scroll when messages load: deep-link to targetMessageId if present, else scroll to bottom
   useEffect(() => {
+    if (!msgData?.messages?.length) return;
+
+    if (targetMessageId) {
+      // Small timeout to allow DOM node rendering
+      const scrollTimer = setTimeout(() => {
+        const el = document.getElementById(`msg-${targetMessageId}`);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+          setHighlightedMessageId(targetMessageId);
+          const clearTimer = setTimeout(() => {
+            setHighlightedMessageId(null);
+          }, 3000);
+          return () => clearTimeout(clearTimer);
+        } else {
+          messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        }
+      }, 100);
+      return () => clearTimeout(scrollTimer);
+    }
+
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [msgData]);
+  }, [msgData, targetMessageId]);
 
   async function runSummarize(chatId) {
     setSummaryState({ loading: true, error: null, summary: null, messageCount: 0 });
@@ -182,6 +223,24 @@ export default function Chats({ priorityOnly = false }) {
       toast.push("Couldn't update priority.", "error");
     }
   }
+
+  const sendOutbound = useCallback(async () => {
+    const text = compose.trim();
+    if (!text || sending || !selected) return;
+    setSending(true);
+    setCompose("");
+    try {
+      await sendWhatsAppMessage(selected.chatId, text);
+      // Give WhatsApp a moment then reload so the sent msg appears
+      setTimeout(() => reloadMessages(), 1200);
+    } catch (err) {
+      toast.push(err.message || "Failed to send", "error");
+      setCompose(text); // restore on failure
+    } finally {
+      setSending(false);
+      composeRef.current?.focus();
+    }
+  }, [compose, sending, selected, reloadMessages]);
 
   const messages = msgData?.messages || [];
   const groups = groupMessagesByDate(messages);
@@ -294,12 +353,54 @@ export default function Chats({ priorityOnly = false }) {
                     <React.Fragment key={group.dateLabel}>
                       <DateSeparator label={group.dateLabel} />
                       {group.messages.map((m) => (
-                        <MsgBubble key={m.id} message={m} onSelect={setSelectedMessage} />
+                        <MsgBubble
+                          key={m.id}
+                          message={m}
+                          onSelect={setSelectedMessage}
+                          isHighlighted={m.id === highlightedMessageId}
+                        />
                       ))}
                     </React.Fragment>
                   ))
                 )}
                 <div ref={messagesEndRef} />
+              </div>
+
+              {/* ── Compose Bar ────────────────────── */}
+              <div className="shrink-0 border-t border-surface-border px-4 py-3">
+                <div className="flex items-end gap-3 rounded-2xl border border-surface-border bg-surface-raised px-4 py-3 transition-all focus-within:border-accent/35 focus-within:shadow-[0_0_0_3px_rgba(56,189,248,0.08)]">
+                  <textarea
+                    ref={composeRef}
+                    value={compose}
+                    onChange={(e) => setCompose(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        sendOutbound();
+                      }
+                    }}
+                    placeholder={`Message ${selected.chatName}…`}
+                    rows={1}
+                    disabled={sending}
+                    className="flex-1 resize-none bg-transparent text-sm text-ink placeholder:text-ink-faint outline-none min-h-[24px] max-h-32 leading-relaxed disabled:opacity-50"
+                    style={{ height: "auto" }}
+                    onInput={(e) => {
+                      e.target.style.height = "auto";
+                      e.target.style.height = Math.min(e.target.scrollHeight, 128) + "px";
+                    }}
+                  />
+                  <button
+                    onClick={sendOutbound}
+                    disabled={!compose.trim() || sending}
+                    className="focus-ring shrink-0 flex h-8 w-8 items-center justify-center rounded-xl bg-accent text-surface transition-all hover:bg-accent-glow disabled:opacity-30 disabled:cursor-not-allowed"
+                    aria-label="Send message"
+                  >
+                    <Send className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                <p className="mt-1.5 text-center text-[10px] text-ink-faint">
+                  Enter to send · Shift+Enter for new line
+                </p>
               </div>
             </>
           )}

@@ -3,16 +3,18 @@ import { X, Sparkles, Send, RotateCw, AlertCircle } from "lucide-react";
 import ScoreBar from "../common/ScoreBar.jsx";
 import { IMPORTANCE_COLORS, clockTime } from "../../utils/format.js";
 import { generateDraft } from "../../api/ai.js";
+import { sendWhatsAppMessage } from "../../api/messages.js";
+import { useToast } from "../../context/ToastContext.jsx";
 
 // "Envelope" experience for an important message. Suggested replies are
-// real Claude-generated drafts (via /api/ai/draft) when ANTHROPIC_API_KEY
-// is configured on the backend — never fabricated client-side. Reply
-// SENDING is still not implemented in the backend (no WhatsApp-send
-// endpoint exists), so that button stays honestly disabled.
+// real Gemini-generated drafts (via /api/ai/draft). Sending goes directly
+// to WhatsApp via /api/messages/send → Baileys sock.sendMessage().
 export default function SmartReplyDrawer({ message, onClose }) {
+  const toast = useToast();
   const [draft, setDraft] = useState("");
   const [suggestions, setSuggestions] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [sending, setSending] = useState(false);
   const [error, setError] = useState(null);
 
   const fetchSuggestions = useCallback(async () => {
@@ -33,14 +35,30 @@ export default function SmartReplyDrawer({ message, onClose }) {
     setDraft("");
     setSuggestions(null);
     setError(null);
+    setSending(false);
     if (message) fetchSuggestions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [message?.id]);
+
+  const handleSend = useCallback(async () => {
+    const text = draft.trim();
+    if (!text || sending || !message?.chatId) return;
+    setSending(true);
+    try {
+      await sendWhatsAppMessage(message.chatId, text);
+      toast.push("Reply sent ✓", "success");
+      onClose();
+    } catch (err) {
+      toast.push(err.message || "Failed to send", "error");
+      setSending(false);
+    }
+  }, [draft, sending, message, onClose, toast]);
 
   if (!message) return null;
 
   const importance = message.importanceAnalysis;
   const impColor = IMPORTANCE_COLORS[importance?.level]?.bar || IMPORTANCE_COLORS.normal.bar;
+  const canSend = !!draft.trim() && !sending;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm sm:items-center" onClick={onClose}>
@@ -53,7 +71,9 @@ export default function SmartReplyDrawer({ message, onClose }) {
             <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-violet-glow">
               <Sparkles className="h-3.5 w-3.5" /> Needs your attention
             </p>
-            <p className="mt-1 text-sm text-ink-muted">{message.sender} · {message.chatName} · {clockTime(message.createdAt || message.receivedAt)}</p>
+            <p className="mt-1 text-sm text-ink-muted">
+              {message.sender} · {message.chatName} · {clockTime(message.createdAt || message.receivedAt)}
+            </p>
           </div>
           <button onClick={onClose} className="focus-ring rounded-lg p-1 text-ink-faint hover:text-ink">
             <X className="h-4 w-4" />
@@ -91,7 +111,7 @@ export default function SmartReplyDrawer({ message, onClose }) {
           {!loading && error === "not_configured" && (
             <div className="flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-400">
               <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-              AI isn't configured yet — add <code className="font-mono">ANTHROPIC_API_KEY</code> to the backend's <code className="font-mono">.env</code> and restart <code className="font-mono">npm run api</code>.
+              AI isn't configured — add <code className="font-mono">ANTHROPIC_API_KEY</code> to <code className="font-mono">.env</code> and restart.
             </div>
           )}
 
@@ -128,6 +148,12 @@ export default function SmartReplyDrawer({ message, onClose }) {
           <textarea
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
             rows={3}
             placeholder="Type a reply, or tap a suggestion above"
             className="focus-ring w-full resize-none rounded-xl border border-surface-border bg-surface-panel px-3 py-2.5 text-sm text-ink placeholder:text-ink-faint"
@@ -137,16 +163,24 @@ export default function SmartReplyDrawer({ message, onClose }) {
         <div className="mt-4 flex items-center gap-2">
           <button
             onClick={fetchSuggestions}
-            disabled={loading}
+            disabled={loading || sending}
             className="focus-ring flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-white/5 py-2 text-sm font-medium text-ink-muted hover:bg-white/10 disabled:opacity-50"
           >
             <RotateCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} /> Regenerate
           </button>
-          <button disabled className="focus-ring flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-emerald-500/10 py-2 text-sm font-medium text-emerald-glow/50">
-            <Send className="h-3.5 w-3.5" /> Send reply
+          <button
+            onClick={handleSend}
+            disabled={!canSend}
+            className="focus-ring flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-emerald-500/15 py-2 text-sm font-medium text-emerald-400 hover:bg-emerald-500/25 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            {sending ? (
+              <RotateCw className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Send className="h-3.5 w-3.5" />
+            )}
+            {sending ? "Sending…" : "Send reply"}
           </button>
         </div>
-        <p className="mt-2 text-center text-[10px] text-ink-faint">Sending isn't connected to WhatsApp yet — coming soon.</p>
       </div>
       <style>{`@keyframes cardIn { from { transform: translateY(16px); opacity: 0 } to { transform: translateY(0); opacity: 1 } }`}</style>
     </div>

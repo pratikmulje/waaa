@@ -55,4 +55,40 @@ router.get("/stream", (req, res) => {
   hub.subscribe(res, ["message"]);
 });
 
+// POST /api/messages/send  { chatId, text }
+router.post("/send", async (req, res) => {
+  const { chatId, text } = req.body || {};
+
+  if (!chatId || !text?.trim()) {
+    return res.status(400).json({ error: "chatId and text are required" });
+  }
+
+  // Lazy-import to avoid circular deps at module load time
+  let getSock;
+  try {
+    ({ getSock } = await import("../../index.js"));
+  } catch (err) {
+    console.error("[API] /messages/send – import failed:", err.message);
+    return res.status(503).json({ error: "Bot module unavailable" });
+  }
+
+  if (typeof getSock !== "function") {
+    console.error("[API] /messages/send – getSock is not a function (export missing?)");
+    return res.status(503).json({ error: "Bot module unavailable" });
+  }
+
+  const sock = getSock();
+  if (!sock) {
+    return res.status(503).json({ error: "WhatsApp is not connected yet" });
+  }
+
+  try {
+    await sock.sendMessage(chatId, { text: text.trim() });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[API] /messages/send error:", err.message);
+    res.status(500).json({ error: err.message || "Failed to send message" });
+  }
+});
+
 export default router;

@@ -10,8 +10,14 @@ export function scoreWithLocalContext(ruleResult, text, memory) {
   const { matchedEntity, matchedTopic } = findMemoryMatches(memory, text);
   const hasMemoryMatch = Boolean(matchedEntity || matchedTopic);
 
-  let score = ruleResult.score;
-  const reasons = [...ruleResult.reasons];
+  const initialScore = Number.isFinite(ruleResult?.finalScore)
+    ? ruleResult.finalScore
+    : (Number.isFinite(ruleResult?.ruleScore)
+        ? ruleResult.ruleScore
+        : (Number.isFinite(ruleResult?.score) ? ruleResult.score : 0));
+
+  let score = initialScore;
+  const reasons = Array.isArray(ruleResult?.reasons) ? [...ruleResult.reasons] : [];
 
   if (matchedEntity) {
     reasons.push(`known entity: ${matchedEntity}`);
@@ -23,7 +29,7 @@ export function scoreWithLocalContext(ruleResult, text, memory) {
     score += 15;
   }
 
-  const hasConcreteSignal = ruleResult.reasons.some((r) =>
+  const hasConcreteSignal = reasons.some((r) =>
     CONCRETE_CATEGORIES.includes(r)
   );
 
@@ -41,16 +47,16 @@ export function scoreWithLocalContext(ruleResult, text, memory) {
   }
   // ────────────────────────────────────────────────────────────────────────
 
-  score = Math.min(score, 100);
+  score = Math.max(0, Math.min(100, Math.round(Number.isFinite(score) ? score : initialScore)));
 
   let level =
     score >= 75 ? "critical" :
     score >= 50 ? "high" :
-    score >= 30 ? "low" :
+    score >= 30 ? "medium" :
     "normal";
 
   if (level === "normal" && hasMemoryMatch) {
-    level = "low";
+    level = "medium";
   }
 
   let confidence;
@@ -59,15 +65,15 @@ export function scoreWithLocalContext(ruleResult, text, memory) {
     confidence = 0.95; // hybrid: strong enough → never call Gemini
   } else if (freqMatches.length > 0 && hasConcreteSignal) {
     confidence = 0.92;
-  } else if (ruleResult.score >= 55) {
+  } else if (initialScore >= 55) {
     confidence = 0.88;
   } else if (hasMemoryMatch && !hasConcreteSignal) {
     confidence = 0.55; // improved: memory match alone is now more trusted
   } else if (freqMatches.length > 0 && !hasConcreteSignal) {
     confidence = 0.50;
-  } else if (ruleResult.score > 0 && ruleResult.score < 55) {
+  } else if (initialScore > 0 && initialScore < 55) {
     confidence = 0.45;
-  } else if (ruleResult.score === 0 && !hasMemoryMatch) {
+  } else if (initialScore === 0 && !hasMemoryMatch) {
     confidence = text.trim().length < 15 ? 0.90 : 0.30;
   } else {
     confidence = 0.70;
