@@ -54,9 +54,9 @@ export async function setConnectionState(partial) {
 }
 
 export async function setQR(qr) {
-  await persist({ status: "waiting_qr", qr, qrGeneratedAt: new Date().toISOString() });
+  await persist({ status: "waiting_qr", qr, qrGeneratedAt: new Date().toISOString(), lastError: null });
 }
 
 export async function setConnected() {
-  await persist({ status: "connected", qr: null, connectedAt: new Date().toISOString() });
+  await persist({ status: "connected", qr: null, lastError: null, connectedAt: new Date().toISOString() });
 }

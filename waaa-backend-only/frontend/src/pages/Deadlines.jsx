@@ -4,12 +4,19 @@ import AppShell from "../components/layout/AppShell.jsx";
 import EmptyState from "../components/common/EmptyState.jsx";
 import ErrorState from "../components/common/ErrorState.jsx";
 import { SkeletonRow } from "../components/common/Skeleton.jsx";
+import { usePolling } from "../hooks/usePolling.js";
 import { getDeadlines } from "../api/intelligence.js";
 import { cleanSourceLabel } from "../utils/format.js";
 
+function resolveDueDate(deadline) {
+  return deadline?.dueDate || deadline?.dueAt || null;
+}
+
 function urgencyClass(dueDate) {
   if (!dueDate) return { border: "border-surface-border", label: "", labelClass: "" };
-  const diff = new Date(dueDate).getTime() - Date.now();
+  const parsedTime = new Date(dueDate).getTime();
+  if (isNaN(parsedTime)) return { border: "border-surface-border", label: "", labelClass: "" };
+  const diff = parsedTime - Date.now();
   const hours = diff / (1000 * 60 * 60);
   if (hours < 0) return { border: "border-red-500/30", label: "Overdue", labelClass: "text-red-400 bg-red-500/10 ring-red-500/20" };
   if (hours < 24) return { border: "border-amber-500/30", label: "Due today", labelClass: "text-amber-glow bg-amber-500/10 ring-amber-500/20" };
@@ -18,16 +25,25 @@ function urgencyClass(dueDate) {
 }
 
 function DeadlineItem({ deadline }) {
-  const { border, label, labelClass } = urgencyClass(deadline.dueDate);
-  const dueDisplay = deadline.dueDate
-    ? new Date(deadline.dueDate).toLocaleString("en-US", {
+  const due = resolveDueDate(deadline);
+  const { border, label, labelClass } = urgencyClass(due);
+  let dueDisplay = null;
+  if (due) {
+    const parsed = new Date(due);
+    if (!isNaN(parsed.getTime())) {
+      dueDisplay = parsed.toLocaleString("en-US", {
         month: "short",
         day: "numeric",
         year: "numeric",
         hour: "2-digit",
         minute: "2-digit",
-      })
-    : null;
+      });
+    } else {
+      dueDisplay = deadline.deadlineText || String(due);
+    }
+  } else if (deadline.deadlineText) {
+    dueDisplay = deadline.deadlineText;
+  }
 
   return (
     <div className={`rounded-2xl border ${border} bg-surface-panel p-4 transition-all animate-slide-up`}>
@@ -65,14 +81,31 @@ export default function DeadlinesPage() {
 
   const sorted = useMemo(() => {
     return [...deadlines].sort((a, b) => {
-      if (!a.dueDate) return 1;
-      if (!b.dueDate) return -1;
-      return new Date(a.dueDate) - new Date(b.dueDate);
+      const dueA = resolveDueDate(a);
+      const dueB = resolveDueDate(b);
+      if (!dueA) return 1;
+      if (!dueB) return -1;
+      const timeA = new Date(dueA).getTime();
+      const timeB = new Date(dueB).getTime();
+      if (isNaN(timeA)) return 1;
+      if (isNaN(timeB)) return -1;
+      return timeA - timeB;
     });
   }, [deadlines]);
 
-  const overdue = sorted.filter((d) => d.dueDate && new Date(d.dueDate) < new Date());
-  const upcoming = sorted.filter((d) => !d.dueDate || new Date(d.dueDate) >= new Date());
+  const nowMs = Date.now();
+  const overdue = sorted.filter((d) => {
+    const due = resolveDueDate(d);
+    if (!due) return false;
+    const time = new Date(due).getTime();
+    return !isNaN(time) && time < nowMs;
+  });
+  const upcoming = sorted.filter((d) => {
+    const due = resolveDueDate(d);
+    if (!due) return true;
+    const time = new Date(due).getTime();
+    return isNaN(time) || time >= nowMs;
+  });
 
   return (
     <AppShell title="Deadlines">
