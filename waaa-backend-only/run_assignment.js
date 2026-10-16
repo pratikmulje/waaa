@@ -111,40 +111,54 @@ function setupBaseSchema(db) {
     );
   `);
 
-  // Load real sample data from WAAA JSON if available, otherwise use defaults
+  // Load real data directly from WAAA JSON (your actual WhatsApp chats and messages)
   try {
     const convPath = path.resolve("data/conversations.json");
     const msgPath = path.resolve("data/messages.json");
 
     if (fs.existsSync(convPath) && fs.existsSync(msgPath)) {
-      const convs = JSON.parse(fs.readFileSync(convPath, "utf8")).slice(0, 5);
-      const msgs = JSON.parse(fs.readFileSync(msgPath, "utf8")).slice(0, 10);
+      const convs = JSON.parse(fs.readFileSync(convPath, "utf8"));
+      const allMsgs = JSON.parse(fs.readFileSync(msgPath, "utf8"));
+      // Take the latest 30 messages in descending order (newest first)
+      const msgs = allMsgs.slice(-30).reverse();
 
+      // Insert all chats so any message's chat_id is valid
+      const insertedChatIds = new Set();
       convs.forEach((c) => {
+        if (!c.id || insertedChatIds.has(c.id)) return;
+        insertedChatIds.add(c.id);
         db.run("INSERT INTO chats VALUES (?, ?, ?, ?)", [
           c.id,
           c.chatName || "Chat",
           c.chatType || "personal",
-          "normal",
+          c.priority ? "starred" : "normal",
         ]);
       });
 
-      msgs.forEach((m, idx) => {
-        // Ensure at least 3 messages have high scores and text with 'meeting' for assignment demo
-        let impScore = m.importanceAnalysis?.finalScore || 50;
-        let txt = m.text || "Message text";
-        if (idx === 0) { impScore = 90; txt = "Important meeting on Project Alpha tomorrow at 10 AM"; }
-        if (idx === 1) { impScore = 80; txt = "Please review the database schema before the meeting"; }
-        if (idx === 2) { impScore = 75; txt = "Hackathon registration deadline is approaching"; }
+      // Insert real messages with real text, sender, date, and importance
+      msgs.forEach((m) => {
+        if (!insertedChatIds.has(m.chatId)) {
+          insertedChatIds.add(m.chatId);
+          db.run("INSERT INTO chats VALUES (?, ?, ?, ?)", [
+            m.chatId,
+            m.chatName || "WhatsApp Chat",
+            m.chatType || "personal",
+            "normal",
+          ]);
+        }
+
+        const impScore = Number(m.importanceAnalysis?.finalScore ?? (m.importanceAnalysis?.ruleScore ?? 50));
+        const fraudScore = Number(m.fraudAnalysis?.finalScore ?? 0);
+        const cleanDate = (m.receivedAt || new Date().toISOString()).slice(0, 19).replace("T", " ");
 
         db.run("INSERT INTO messages VALUES (?, ?, ?, ?, ?, ?, ?)", [
           m.id,
           m.chatId,
-          m.sender || "User",
-          txt,
+          m.sender || m.chatName || "User",
+          m.text || "(Media / Attachment)",
           impScore,
-          m.fraudAnalysis?.finalScore || 0,
-          m.receivedAt || new Date().toISOString(),
+          fraudScore,
+          cleanDate,
         ]);
       });
 
@@ -197,20 +211,20 @@ function runAssignment1(db) {
   printQuery(
     db,
     "2. DML: Display records from parent table 'chats' (Primary Key: chat_id)",
-    "SELECT * FROM chats;"
+    "SELECT chat_id, chat_name, chat_type, tier FROM chats LIMIT 5;"
   );
 
   printQuery(
     db,
-    "3. DML: Display records from child table 'messages' (Foreign Key: chat_id)",
-    "SELECT id, chat_id, sender, text, importance_score, fraud_score FROM messages LIMIT 5;"
+    "3. DML: Display real WhatsApp messages (Foreign Key: chat_id)",
+    "SELECT id, chat_id, sender, text, importance_score, received_at FROM messages LIMIT 5;"
   );
 
   printQuery(
     db,
     "4. DML INSERT: Add a new message linked to 'chats'",
-    `INSERT INTO messages VALUES ('m_new_1', (SELECT chat_id FROM chats LIMIT 1), 'Jayram', 'Confirmed meeting tomorrow', 80, 0, '2026-10-16 18:00');
-     SELECT * FROM messages WHERE id = 'm_new_1';`
+    `INSERT INTO messages VALUES ('m_new_live', (SELECT chat_id FROM chats LIMIT 1), 'Jayram', 'Live presentation test message', 85, 0, '2026-10-16 18:00');
+     SELECT * FROM messages WHERE id = 'm_new_live';`
   );
 
   printQuery(
@@ -229,17 +243,17 @@ function runAssignment2(db) {
 
   printQuery(
     db,
-    "1. CREATE VIEW: Create a View for Important Messages (score >= 75)",
+    "1. CREATE VIEW: Create a View for Important Messages",
     `CREATE VIEW IF NOT EXISTS v_important_messages AS
      SELECT id, sender, text, importance_score, received_at
      FROM messages
-     WHERE importance_score >= 75;`
+     WHERE importance_score >= 50;`
   );
 
   printQuery(
     db,
     "2. SELECT FROM VIEW: Query the newly created View",
-    "SELECT * FROM v_important_messages;"
+    "SELECT * FROM v_important_messages LIMIT 5;"
   );
 
   printQuery(
@@ -268,7 +282,7 @@ function runAssignment3(db) {
   printQuery(
     db,
     "1. INNER JOIN / EQUI-JOIN: Join messages with chats on chat_id",
-    `SELECT m.id AS msg_id, c.chat_name, c.chat_type, m.sender, m.text, m.importance_score
+    `SELECT m.id AS msg_id, c.chat_name, c.chat_type, m.sender, m.text, m.received_at
      FROM messages m
      INNER JOIN chats c ON m.chat_id = c.chat_id
      LIMIT 5;`
@@ -279,7 +293,8 @@ function runAssignment3(db) {
     "2. LEFT OUTER JOIN: All chats, showing associated tasks if any",
     `SELECT c.chat_id, c.chat_name, c.tier, t.task_text, t.status
      FROM chats c
-     LEFT JOIN tasks t ON c.chat_id = t.chat_id;`
+     LEFT JOIN tasks t ON c.chat_id = t.chat_id
+     LIMIT 5;`
   );
 
   printQuery(
@@ -300,10 +315,11 @@ function runAssignment5(db) {
 
   printQuery(
     db,
-    "1. WHERE Clause Operators: LIKE, AND, >=",
-    `SELECT id, sender, text, importance_score
+    "1. WHERE Clause: Filter messages by importance or length",
+    `SELECT id, sender, text, importance_score, received_at
      FROM messages
-     WHERE text LIKE '%meeting%' OR importance_score >= 80;`
+     WHERE LENGTH(text) > 3 OR importance_score >= 50
+     LIMIT 5;`
   );
 
   printQuery(
@@ -311,7 +327,7 @@ function runAssignment5(db) {
     "2. Aggregate Functions: COUNT, AVG, MAX, MIN",
     `SELECT 
        COUNT(*) AS total_messages,
-       AVG(importance_score) AS avg_importance,
+       ROUND(AVG(importance_score), 1) AS avg_importance,
        MAX(importance_score) AS max_importance,
        MIN(importance_score) AS min_importance
      FROM messages;`
@@ -320,10 +336,11 @@ function runAssignment5(db) {
   printQuery(
     db,
     "3. GROUP BY and HAVING: Message statistics grouped by sender",
-    `SELECT sender, COUNT(*) AS msg_count, AVG(importance_score) AS avg_score
+    `SELECT sender, COUNT(*) AS msg_count, ROUND(AVG(importance_score), 1) AS avg_score
      FROM messages
      GROUP BY sender
-     HAVING COUNT(*) >= 1;`
+     ORDER BY msg_count DESC
+     LIMIT 5;`
   );
 
   printQuery(
@@ -361,7 +378,14 @@ In MySQL, Stored Procedures are created with:
 `);
 
   // Demonstration executing the procedure logic
-  const sampleChat = db.exec("SELECT chat_id, chat_name FROM chats LIMIT 1;")[0].values[0];
+  const sampleChat = db.exec(`
+    SELECT c.chat_id, c.chat_name 
+    FROM messages m 
+    JOIN chats c ON m.chat_id = c.chat_id 
+    GROUP BY c.chat_id 
+    ORDER BY COUNT(*) DESC 
+    LIMIT 1;
+  `)[0].values[0];
   const targetChatId = sampleChat[0];
   const targetChatName = sampleChat[1];
 
