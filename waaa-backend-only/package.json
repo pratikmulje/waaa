@@ -11,7 +11,9 @@
     "db:test": "node database/scripts/verify_mysql_connection.js",
     "db:migrate": "node database/migrations/migrate_json_to_mysql.js",
     "db:export": "node database/migrations/export_mysql_to_json.js",
-    "demo": "node run_assignment.js"
+    "demo": "node run_assignment.js",
+    "demo:all": "node run_assignment.js all",
+    "demo:stats": "node run_assignment.js stats"
   },
   "dependencies": {
     "@google/genai": "^2.18.0",

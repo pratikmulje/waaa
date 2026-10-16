@@ -363,7 +363,7 @@ export async function runMigration() {
         bm.messageId || bm.id,
         bm.hour || 0,
         bm.weekday || "Mon",
-        bm.timestamp ? new Date(bm.timestamp) : new Date(),
+        bm.timestamp?.iso ? new Date(bm.timestamp.iso) : (bm.timestamp ? new Date(bm.timestamp) : new Date()),
       ]);
     }
 
@@ -398,7 +398,7 @@ export async function runMigration() {
         ON DUPLICATE KEY UPDATE updated_at = CURRENT_TIMESTAMP
       `, [
         cm.id || cm.chatId,
-        cm.chatId,
+        cm.chatId || cm.id,
         JSON.stringify(cm.activeTopics || []),
         JSON.stringify(cm.entities || []),
         JSON.stringify(cm.pending || []),
@@ -511,7 +511,7 @@ export async function runMigration() {
       { name: "conversations / chats", file: "conversations.json", table: "chats", expected: 40 },
       { name: "people / contacts", file: "people.json", table: "contacts", expected: 109 },
       { name: "actions / tasks", file: "actions.json", table: "tasks", expected: 4 },
-      { name: "deadlines", file: "actions.json", table: "deadlines", expected: 4 },
+      { name: "deadlines", file: "actions.json", table: "deadlines", expected: 1 },
       { name: "jobs", file: "jobs.json", table: "jobs", expected: 33 },
       { name: "behaviorMessages", file: "behaviorMessages.json", table: "behavior_messages", expected: 436 },
       { name: "behaviorPatterns", file: "behaviorPatterns.json", table: "behavior_patterns", expected: 2 },

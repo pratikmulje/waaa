@@ -1,4 +1,4 @@
-﻿# Node
+# Node
 node_modules/
 npm-debug.log*
 yarn-debug.log*
@@ -27,6 +27,12 @@ creds.json
 /data/
 *.lock
 *.tmp.*
+data_backup_pre_mysql_*/
+
+# MySQL local database storage
+database/mysql_data/
+**/mysql_data/
+*.ibd
 
 # Archives & binaries
 *.zip
