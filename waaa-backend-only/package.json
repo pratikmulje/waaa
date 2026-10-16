@@ -7,7 +7,11 @@
   "scripts": {
     "start": "node src/runtimeServer.js",
     "bot": "node src/index.js",
-    "api": "node src/api/server.js"
+    "api": "node src/api/server.js",
+    "db:test": "node database/scripts/verify_mysql_connection.js",
+    "db:migrate": "node database/migrations/migrate_json_to_mysql.js",
+    "db:export": "node database/migrations/export_mysql_to_json.js",
+    "demo": "node run_assignment.js"
   },
   "dependencies": {
     "@google/genai": "^2.18.0",
@@ -17,7 +21,9 @@
     "dotenv": "^16.4.5",
     "express": "^4.21.2",
     "git": "^0.1.5",
+    "mysql2": "^3.24.6",
     "pino": "^9.4.0",
-    "qrcode-terminal": "^0.12.0"
+    "qrcode-terminal": "^0.12.0",
+    "sql.js": "^1.15.0"
   }
 }
