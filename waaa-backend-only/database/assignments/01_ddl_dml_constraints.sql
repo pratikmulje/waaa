@@ -16,7 +16,7 @@ CREATE TABLE messages (
     id VARCHAR(64) PRIMARY KEY,
     chat_id VARCHAR(128) NOT NULL,
     sender VARCHAR(128) NOT NULL,
-    message_text TEXT NOT NULL,
+    text TEXT NOT NULL,
     importance_score INT NOT NULL DEFAULT 0 CHECK (importance_score BETWEEN 0 AND 100),
     received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_messages_chat FOREIGN KEY (chat_id) REFERENCES chats(chat_id) ON DELETE RESTRICT
@@ -28,7 +28,7 @@ VALUES ('c_101', 'Jayram (Colleague)', 'personal'),
        ('c_102', 'Project Alpha Group', 'group');
 
 -- 4. DML: Insert records into 'messages' (linked via Foreign Key)
-INSERT INTO messages (id, chat_id, sender, message_text, importance_score)
+INSERT INTO messages (id, chat_id, sender, text, importance_score)
 VALUES ('m_1', 'c_101', 'Jayram', 'Important meeting tomorrow at 10 AM', 85),
        ('m_2', 'c_102', 'Alex', 'Backend server build succeeded', 90);
 

@@ -10,7 +10,7 @@ CREATE PROCEDURE sp_get_chat_messages (
     IN p_chat_id VARCHAR(128)
 )
 BEGIN
-    SELECT id, sender, message_text, importance_score, received_at
+    SELECT id, sender, text, importance_score, received_at
     FROM messages
     WHERE chat_id = p_chat_id
     ORDER BY received_at DESC;
@@ -32,6 +32,6 @@ END //
 DELIMITER ;
 
 -- CALL Demonstration:
-CALL sp_get_chat_messages('c_101');
-CALL sp_get_chat_stats('c_101', @total, @avg);
+CALL sp_get_chat_messages('120363426662545775@g.us');
+CALL sp_get_chat_stats('120363426662545775@g.us', @total, @avg);
 SELECT @total AS total_messages, @avg AS avg_importance_score;
