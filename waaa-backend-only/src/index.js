@@ -15,7 +15,10 @@ import {
   isRecoveryInProgress,
   setRecoveryInProgress,
   backupAuthInfo,
+  wipeBothAndReset,
 } from "./session/sessionGuard.js";
+
+import { handleAccountConnection } from "./session/accountGuard.js";
 
 import { Boom } from "@hapi/boom";
 import qrcode from "qrcode-terminal";
@@ -1667,6 +1670,11 @@ async function processIncomingMessage(
       fromMe:
         Boolean(msg.key.fromMe),
 
+      userId:
+        sock?.user?.id
+          ? sock.user.id.split(":")[0].split("@")[0]
+          : null,
+
 
       // Message
 
@@ -1932,12 +1940,17 @@ async function start() {
             "[connection] connected to WhatsApp ✅"
           );
 
-
           console.log(
             "[connection] Message listener is active ✅"
           );
 
-          setConnected();
+          // Account Switch Guard: verify account and isolate data if different user
+          const account = await handleAccountConnection(sock);
+
+          await setConnected({
+            userPhone: account?.phone || null,
+            userName: account?.name || null,
+          });
 
           scheduleBackup();
 
@@ -1999,12 +2012,16 @@ async function start() {
             );
 
             console.log(
-              "Delete auth_info and restart to re-link."
+              "[connection] Clearing auth_info so next connection triggers fresh QR..."
             );
+
+            wipeBothAndReset("default_user");
 
             setConnectionState({
               status: "disconnected",
               lastError: "logged_out",
+              userPhone: null,
+              userName: null,
             });
           }
         }

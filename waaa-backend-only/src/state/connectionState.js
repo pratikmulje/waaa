@@ -28,6 +28,8 @@ let localCache = {
   qrGeneratedAt: null,
   lastError: null,
   connectedAt: null,
+  userPhone: null,
+  userName: null,
   updatedAt: new Date().toISOString(),
 };
 
@@ -57,6 +59,12 @@ export async function setQR(qr) {
   await persist({ status: "waiting_qr", qr, qrGeneratedAt: new Date().toISOString(), lastError: null });
 }
 
-export async function setConnected() {
-  await persist({ status: "connected", qr: null, lastError: null, connectedAt: new Date().toISOString() });
+export async function setConnected(metadata = {}) {
+  await persist({
+    status: "connected",
+    qr: null,
+    lastError: null,
+    connectedAt: new Date().toISOString(),
+    ...metadata,
+  });
 }
