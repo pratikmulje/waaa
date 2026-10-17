@@ -18,6 +18,11 @@ function watchFile(filename, eventName) {
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {
       hub.publish(eventName, { changed: true, at: new Date().toISOString() });
+      if (filename === "messages.json") {
+        import("../db/mysqlLiveSync.js")
+          .then(({ syncLatestFromDisk }) => syncLatestFromDisk(50))
+          .catch(() => {});
+      }
     }, 150);
   });
 }

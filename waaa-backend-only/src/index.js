@@ -608,6 +608,11 @@ async function saveMessage(
       `[Storage] Message saved: ${docRef.id}`
     );
 
+    // Stream directly into MySQL in real time
+    import("./db/mysqlLiveSync.js")
+      .then(({ syncMessageToMySQL }) => syncMessageToMySQL(cleanEntry, docRef.id))
+      .catch(() => {});
+
     // Invalidate overlapping range caches
     if (cleanEntry?.chatId) {
       import("./intelligence/rangeCache.js")
@@ -700,6 +705,13 @@ async function saveConversation(
     console.log(
       `[Storage] Conversation updated: ${chatInfo.chatName} (${chatInfo.chatType})`
     );
+
+    // Stream conversation metadata directly into MySQL in real time
+    import("./db/mysqlLiveSync.js")
+      .then(({ syncChatToMySQL }) =>
+        syncChatToMySQL(chatId, { ...chatInfo, chatName: finalChatName }, messageData)
+      )
+      .catch(() => {});
 
   } catch (error) {
 
