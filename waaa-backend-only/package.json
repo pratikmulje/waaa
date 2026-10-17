@@ -14,7 +14,7 @@
     "demo": "node run_assignment.js",
     "demo:all": "node run_assignment.js all",
     "demo:stats": "node run_assignment.js stats",
-    "mysql": "\"C:\\Program Files\\MySQL\\MySQL Server 8.4\\bin\\mysql.exe\" -u root waaa_db"
+    "mysql": "node database/scripts/mysql_cli.js"
   },
   "dependencies": {
     "@google/genai": "^2.18.0",
