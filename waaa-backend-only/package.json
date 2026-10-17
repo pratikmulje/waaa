@@ -13,7 +13,8 @@
     "db:export": "node database/migrations/export_mysql_to_json.js",
     "demo": "node run_assignment.js",
     "demo:all": "node run_assignment.js all",
-    "demo:stats": "node run_assignment.js stats"
+    "demo:stats": "node run_assignment.js stats",
+    "mysql": "\"C:\\Program Files\\MySQL\\MySQL Server 8.4\\bin\\mysql.exe\" -u root waaa_db"
   },
   "dependencies": {
     "@google/genai": "^2.18.0",

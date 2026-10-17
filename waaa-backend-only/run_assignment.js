@@ -874,6 +874,7 @@ INTERACTIVE TABLE EXPLORATION:
     --search "<term>"     Search text across all varchar/text columns
 
 SCHEMA INSPECTION & UTILITIES:
+  npm run demo sql "<SQL>"      Execute any custom SQL query (e.g. "SELECT * FROM chats")
   npm run demo schema           List all 21 tables & views in waaa_db with row counts
   npm run demo schema <table >  Deep inspect column types, keys, foreign keys & indexes
   npm run demo stats            Display database statistics (real vs synthetic breakdown)
@@ -958,6 +959,16 @@ async function main() {
       case "seed":
         await seedLargeDataset(options);
         break;
+      case "sql":
+      case "query": {
+        const rawSql = args.slice(1).join(" ");
+        if (!rawSql.trim()) {
+          console.log("\nUsage: npm run demo sql \"SELECT * FROM chats;\"");
+          return;
+        }
+        await printQuery(pool, "Custom SQL Execution", rawSql);
+        break;
+      }
       case "setup":
         await setupMysqlRoutines();
         break;
