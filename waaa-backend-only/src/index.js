@@ -280,35 +280,64 @@ const contactsCache = new Map();
 async function getChatInfo(
   sock,
   chatId,
-  pushName
-
+  pushName,
+  isFromMe = false
 ) {
-
   const basicType =
     getChatType(chatId);
-
 
   // -----------------------------------------------
   // PERSONAL
   // -----------------------------------------------
-
   if (
     basicType === "personal"
   ) {
+    let resolvedName = contactsCache.get(chatId);
+
+    // Check existing conversation in database to avoid overwriting good contact names
+    if (!resolvedName) {
+      try {
+        const convDoc = await db.collection("conversations").doc(chatId).get();
+        if (convDoc?.exists) {
+          const ex = convDoc.data();
+          if (ex?.chatName && !ex.chatName.includes("@") && !ex.chatName.toLowerCase().startsWith("lucky")) {
+            resolvedName = ex.chatName;
+          }
+        }
+      } catch {}
+    }
+
+    // Check people collection for verified contact name
+    if (!resolvedName) {
+      try {
+        const peopleSnap = await db.collection("people").get();
+        if (peopleSnap?.docs) {
+          for (const doc of peopleSnap.docs) {
+            const p = doc.data();
+            if (p?.primaryJid === chatId && p?.primaryName && !p.primaryName.toLowerCase().startsWith("lucky")) {
+              resolvedName = p.primaryName;
+              break;
+            }
+          }
+        }
+      } catch {}
+    }
+
+    // Only use pushName if this is an incoming message (pushName of other person)
+    // NEVER use pushName for outgoing messages as that is the user's own display name!
+    if (!resolvedName && !isFromMe && pushName && !pushName.toLowerCase().startsWith("lucky")) {
+      resolvedName = pushName;
+    }
+
+    if (!resolvedName) {
+      resolvedName = `+${chatId.split("@")[0]}`;
+    }
 
     return {
-
       chatType: "personal",
-
-      chatName:
-        contactsCache.get(chatId) ||
-        pushName ||
-        chatId.split("@")[0],
-
+      chatName: resolvedName,
       isCommunity: false,
-
       participantCount: null,
-
       linkedParent: null,
     };
   }
@@ -615,23 +644,28 @@ async function saveConversation(
   chatInfo,
   messageData
 ) {
-
   try {
+    let finalChatName = chatInfo.chatName;
+    try {
+      const existingDoc = await db.collection("conversations").doc(chatId).get();
+      if (existingDoc?.exists) {
+        const ex = existingDoc.data();
+        if (ex?.chatName && !ex.chatName.includes("@") && !ex.chatName.toLowerCase().startsWith("lucky")) {
+          finalChatName = ex.chatName;
+        }
+      }
+    } catch {}
 
     await db
       .collection("conversations")
       .doc(chatId)
       .set(
-
         {
-
           chatId,
-
           chatType:
             chatInfo.chatType,
-
           chatName:
-            chatInfo.chatName,
+            finalChatName,
 
           isCommunity:
             Boolean(
@@ -1205,11 +1239,14 @@ async function processIncomingMessage(
     // =================================================
 
 
+    const isFromMe = Boolean(msg.key?.fromMe);
+
     const chatInfo =
       await getChatInfo(
         sock,
         chatId,
-        msg.pushName
+        msg.pushName,
+        isFromMe
       );
 
 
@@ -1250,10 +1287,10 @@ async function processIncomingMessage(
     // =================================================
 
     const sender =
-      msg.key?.fromMe
-        ? (msg.pushName || "You")
+      isFromMe
+        ? "You"
         : (msg.pushName ||
-           msg.key.participant ||
+           msg.key?.participant ||
            chatId);
 
 
