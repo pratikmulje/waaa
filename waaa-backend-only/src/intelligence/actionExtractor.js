@@ -462,21 +462,30 @@ export async function getFilteredActions(filters = {}) {
         (a.waitingOnUser && a.waitingOnUser.toLowerCase().includes(p))
     );
   }
+  if (filters.days && Number(filters.days) > 0) {
+    const cutoff = Date.now() - Number(filters.days) * 24 * 60 * 60 * 1000;
+    result = result.filter((a) => {
+      const ts = a.createdAt || a.extractedAt || a.updatedAt;
+      if (!ts) return false;
+      const t = new Date(ts).getTime();
+      return !isNaN(t) && t >= cutoff;
+    });
+  }
 
   return result;
 }
 
 /**
- * Updates an action item's status (e.g. mark completed).
+ * Updates an action item's status (e.g. mark completed / done).
  */
 export async function updateActionStatus(actionId, status) {
   const actions = await loadActions();
-  const act = actions.find((a) => a.id === actionId);
+  const act = actions.find((a) => a.id === actionId || a.actionId === actionId);
   if (!act) return null;
 
   act.status = status;
   act.updatedAt = new Date().toISOString();
-  if (status === "completed") {
+  if (status === "completed" || status === "done") {
     act.completedAt = act.updatedAt;
   }
   await saveActions(actions);

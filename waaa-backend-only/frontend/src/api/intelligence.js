@@ -29,6 +29,10 @@ export const getActions = (params = {}) => {
   return api.get(`/intelligence/actions${qs ? `?${qs}` : ""}`);
 };
 
+export const updateActionStatus = (actionId, status) => {
+  return api.patch(`/intelligence/actions/${encodeURIComponent(actionId)}`, { status });
+};
+
 export const getProjects = () => api.get("/intelligence/projects");
 
 export const smartRetrieve = (query, options = {}) =>

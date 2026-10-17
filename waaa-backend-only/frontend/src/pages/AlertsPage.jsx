@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Bell, BellOff, CheckCheck } from "lucide-react";
+import React, { useMemo, useState } from "react";
+import { Bell, BellOff, Check, Clock } from "lucide-react";
 import AppShell from "../components/layout/AppShell.jsx";
 import EmptyState from "../components/common/EmptyState.jsx";
 import ErrorState from "../components/common/ErrorState.jsx";
@@ -7,6 +7,9 @@ import { SkeletonRow } from "../components/common/Skeleton.jsx";
 import { usePolling } from "../hooks/usePolling.js";
 import { getAlerts, markAlertRead } from "../api/intelligence.js";
 import { timeAgo } from "../utils/format.js";
+import { isWithinDays, getStoredDoneSet, addStoredDoneId } from "../utils/recency.js";
+
+const STORAGE_KEY = "waaa_alerts_done_ids";
 
 const SEVERITY_STYLES = {
   critical: { border: "border-red-500/25", badge: "bg-red-500/10 text-red-400 ring-red-500/20", dot: "bg-red-400" },
@@ -14,7 +17,7 @@ const SEVERITY_STYLES = {
   info: { border: "border-accent/15", badge: "bg-accent/8 text-accent ring-accent/20", dot: "bg-accent" },
 };
 
-function AlertItem({ alert, onRead }) {
+function AlertItem({ alert, onDone }) {
   const severity = SEVERITY_STYLES[alert.severity] || SEVERITY_STYLES.info;
   const isUnread = !alert.read;
 
@@ -47,11 +50,12 @@ function AlertItem({ alert, onRead }) {
 
       {isUnread && (
         <button
-          onClick={() => onRead(alert.alertId)}
-          className="focus-ring mt-3 flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] text-ink-faint hover:bg-surface-hover hover:text-ink transition-colors"
+          onClick={() => onDone(alert.alertId)}
+          className="focus-ring mt-3 inline-flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-400 hover:bg-emerald-500/20 hover:border-emerald-500/50 transition-all shadow-sm"
+          title="Mark alert as read & done"
         >
-          <CheckCheck className="h-3.5 w-3.5" strokeWidth={1.75} />
-          Mark as read
+          <Check className="h-3.5 w-3.5 text-emerald-400" strokeWidth={2.2} />
+          <span>Done</span>
         </button>
       )}
     </div>
@@ -60,26 +64,53 @@ function AlertItem({ alert, onRead }) {
 
 export default function AlertsPage() {
   const [showAll, setShowAll] = useState(false);
+  const [showOlder, setShowOlder] = useState(false);
+  const [doneIds, setDoneIds] = useState(() => getStoredDoneSet(STORAGE_KEY));
 
   const { data, error, loading, reload } = usePolling(
     () => getAlerts(showAll ? { limit: 100 } : { unread: "true", limit: 50 }),
     { intervalMs: 10000, deps: [showAll] }
   );
 
-  const alerts = data?.alerts || [];
+  const rawAlerts = data?.alerts || [];
 
-  async function handleRead(alertId) {
+  // Count older alerts (> 2 days)
+  const totalOlderCount = useMemo(() => {
+    return rawAlerts.filter((a) => !isWithinDays(a.createdAt, 2)).length;
+  }, [rawAlerts]);
+
+  // Filter alerts by 2-day cutoff and local Done state
+  const alerts = useMemo(() => {
+    return rawAlerts.map((a) => {
+      if (doneIds.has(a.alertId)) {
+        return { ...a, read: true };
+      }
+      return a;
+    }).filter((a) => {
+      // If showing unread only, filter out read
+      if (!showAll && a.read) return false;
+      // Filter out older than 2 days unless showOlder is true
+      if (!showOlder && !isWithinDays(a.createdAt, 2)) return false;
+      return true;
+    });
+  }, [rawAlerts, doneIds, showAll, showOlder]);
+
+  async function handleDone(alertId) {
+    const updated = addStoredDoneId(STORAGE_KEY, alertId);
+    setDoneIds(updated);
     try {
       await markAlertRead(alertId, true);
       reload();
-    } catch { /* ignore */ }
+    } catch {
+      // optimistic update is preserved in local storage
+    }
   }
 
   return (
     <AppShell title="Alerts">
       {/* Toolbar */}
-      <div className="mb-5 flex items-center justify-between">
-        <div className="flex items-center gap-2">
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-surface-border/40 pb-3">
+        <div className="flex flex-wrap items-center gap-2">
           {!showAll ? (
             <button
               onClick={() => setShowAll(true)}
@@ -97,12 +128,34 @@ export default function AlertsPage() {
               All alerts
             </button>
           )}
-        </div>
-        {alerts.length > 0 && (
-          <span className="text-xs text-ink-faint">
-            {alerts.length} alert{alerts.length !== 1 ? "s" : ""}
+
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-surface-border bg-surface-raised px-2.5 py-1 text-xs font-medium text-ink-muted">
+            <Clock className="h-3 w-3 text-accent" />
+            {showOlder ? "All history" : "Last 48 hours"}
           </span>
-        )}
+
+          {totalOlderCount > 0 && (
+            <button
+              onClick={() => setShowOlder(!showOlder)}
+              className="text-xs font-medium text-accent hover:underline ml-1"
+            >
+              {showOlder ? "Show last 48h only" : `Include older (${totalOlderCount})`}
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-center gap-3 text-xs text-ink-faint">
+          {doneIds.size > 0 && (
+            <span className="text-[11px] text-emerald-400">
+              {doneIds.size} completed
+            </span>
+          )}
+          {alerts.length > 0 && (
+            <span>
+              {alerts.length} alert{alerts.length !== 1 ? "s" : ""}
+            </span>
+          )}
+        </div>
       </div>
 
       {error && <ErrorState message="Couldn't load alerts." onRetry={reload} />}
@@ -117,14 +170,18 @@ export default function AlertsPage() {
         <EmptyState
           icon={BellOff}
           title={showAll ? "No alerts" : "No unread alerts"}
-          description={showAll ? "No alerts have been generated yet." : "You're all caught up."}
+          description={
+            showOlder
+              ? "All alerts have been reviewed."
+              : "No alerts from the last 48 hours. Older and completed alerts are automatically removed."
+          }
         />
       )}
 
       {!error && !loading && alerts.length > 0 && (
         <div className="space-y-2 max-w-2xl">
           {alerts.map((a, i) => (
-            <AlertItem key={a.alertId || i} alert={a} onRead={handleRead} />
+            <AlertItem key={a.alertId || i} alert={a} onDone={handleDone} />
           ))}
         </div>
       )}

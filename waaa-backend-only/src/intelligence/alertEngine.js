@@ -270,6 +270,15 @@ export async function getFilteredAlerts(filters = {}) {
   if (filters.watchId) result = result.filter((a) => a.watchId === filters.watchId);
   if (filters.project) result = result.filter((a) => a.projectId === filters.project);
   if (filters.chat) result = result.filter((a) => a.chatId === filters.chat);
+  if (filters.days && Number(filters.days) > 0) {
+    const cutoff = Date.now() - Number(filters.days) * 24 * 60 * 60 * 1000;
+    result = result.filter((a) => {
+      const ts = a.createdAt;
+      if (!ts) return false;
+      const t = new Date(ts).getTime();
+      return !isNaN(t) && t >= cutoff;
+    });
+  }
 
   // Sort newest first
   result.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));

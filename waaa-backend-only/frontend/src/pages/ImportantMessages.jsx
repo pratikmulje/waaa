@@ -1,14 +1,17 @@
 import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Flame, Sparkles, ArrowRight, Clock, User, MessageCircle } from "lucide-react";
+import { Flame, Sparkles, ArrowRight, Clock, User, MessageCircle, Check, RotateCcw } from "lucide-react";
 import AppShell from "../components/layout/AppShell.jsx";
 import EmptyState from "../components/common/EmptyState.jsx";
 import ErrorState from "../components/common/ErrorState.jsx";
 import { SkeletonRow } from "../components/common/Skeleton.jsx";
 import SmartReplyDrawer from "../components/intelligence/SmartReplyDrawer.jsx";
 import { usePolling } from "../hooks/usePolling.js";
-import { getMessages } from "../api/messages.js";
+import { getMessages, updateMessage } from "../api/messages.js";
 import { fullDateTime } from "../utils/format.js";
+import { isWithinDays, getStoredDoneSet, addStoredDoneId, removeStoredDoneId } from "../utils/recency.js";
+
+const STORAGE_KEY = "waaa_important_done_ids";
 
 function getHumanSender(m) {
   // If sender is a human name and not an internal JID/number, use it
@@ -31,6 +34,8 @@ function getDisplayChat(m) {
 
 export default function ImportantMessages() {
   const [selected, setSelected] = useState(null);
+  const [showOlder, setShowOlder] = useState(false);
+  const [doneIds, setDoneIds] = useState(() => getStoredDoneSet(STORAGE_KEY));
   const navigate = useNavigate();
 
   const { data, error, loading, reload } = usePolling(
@@ -38,14 +43,78 @@ export default function ImportantMessages() {
     { intervalMs: 10000 }
   );
 
-  const important = useMemo(() => {
+  const allImportant = useMemo(() => {
     return (data?.messages || [])
       .filter((m) => (m.importanceAnalysis?.finalScore ?? 0) >= 50)
       .sort((a, b) => (b.importanceAnalysis?.finalScore ?? 0) - (a.importanceAnalysis?.finalScore ?? 0));
   }, [data]);
 
+  // Count how many total important messages are older than 2 days
+  const totalOlderCount = useMemo(() => {
+    return allImportant.filter((m) => {
+      const ts = m.createdAt || m.receivedAt;
+      return !isWithinDays(ts, 2);
+    }).length;
+  }, [allImportant]);
+
+  // Active important messages:
+  // - Filter out messages already marked as Done
+  // - Filter out messages older than 2 days (unless showOlder is enabled)
+  const important = useMemo(() => {
+    return allImportant.filter((m) => {
+      if (doneIds.has(m.id) || m.done === true) return false;
+      if (!showOlder) {
+        const ts = m.createdAt || m.receivedAt;
+        if (!isWithinDays(ts, 2)) return false;
+      }
+      return true;
+    });
+  }, [allImportant, doneIds, showOlder]);
+
+  const handleMarkDone = async (messageId) => {
+    const updated = addStoredDoneId(STORAGE_KEY, messageId);
+    setDoneIds(updated);
+    try {
+      await updateMessage(messageId, { done: true, read: true });
+    } catch {
+      // optimistic update is already saved in localStorage
+    }
+  };
+
+  const handleRestoreDone = (messageId) => {
+    const updated = removeStoredDoneId(STORAGE_KEY, messageId);
+    setDoneIds(updated);
+  };
+
   return (
     <AppShell title="Important">
+      {/* Recency Toolbar & Filter Controls */}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-surface-border/40 pb-3">
+        <div className="flex items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-surface-border bg-surface-raised px-2.5 py-1 text-xs font-medium text-ink-muted">
+            <Clock className="h-3 w-3 text-accent" />
+            {showOlder ? "All messages (history)" : "Last 48 hours"}
+          </span>
+          {totalOlderCount > 0 && (
+            <button
+              onClick={() => setShowOlder(!showOlder)}
+              className="text-xs font-medium text-accent hover:underline ml-1"
+            >
+              {showOlder ? "Show last 48h only" : `Include older (${totalOlderCount})`}
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-center gap-3 text-xs text-ink-faint">
+          {doneIds.size > 0 && (
+            <span className="text-[11px] text-emerald-400">
+              {doneIds.size} completed
+            </span>
+          )}
+          <span>Sorted by priority</span>
+        </div>
+      </div>
+
       {error && <ErrorState message="Couldn't load important messages." onRetry={reload} />}
 
       {!error && loading && (
@@ -58,7 +127,11 @@ export default function ImportantMessages() {
         <EmptyState
           icon={Flame}
           title="Nothing needs attention right now"
-          description="Messages scoring 50+ on importance appear here."
+          description={
+            showOlder
+              ? "All important messages have been marked as done."
+              : "Messages scoring 50+ received in the last 48 hours appear here. Older items (> 2 days) and resolved messages are automatically cleaned up."
+          }
         />
       )}
 
@@ -68,7 +141,9 @@ export default function ImportantMessages() {
             <p className="text-xs font-medium text-ink-muted">
               {important.length} important message{important.length !== 1 ? "s" : ""}
             </p>
-            <span className="text-[11px] text-ink-faint">Sorted by priority</span>
+            <span className="text-[11px] text-ink-faint">
+              Auto-removing items older than 2 days
+            </span>
           </div>
 
           {important.map((m) => {
@@ -147,15 +222,26 @@ export default function ImportantMessages() {
                   </div>
                 )}
 
-                {/* Action footer */}
+                {/* Action footer with Done button */}
                 <div className="flex items-center justify-between pt-1 border-t border-surface-border/40">
-                  <button
-                    onClick={() => setSelected(m)}
-                    className="focus-ring inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-ink-muted hover:bg-surface-hover hover:text-ink transition-colors"
-                  >
-                    <Sparkles className="h-3.5 w-3.5 text-accent" />
-                    Smart Reply
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleMarkDone(m.id)}
+                      title="Mark as read & done (dismisses message)"
+                      className="focus-ring inline-flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-400 hover:bg-emerald-500/20 hover:border-emerald-500/50 transition-all shadow-sm"
+                    >
+                      <Check className="h-3.5 w-3.5 text-emerald-400" strokeWidth={2.2} />
+                      <span>Done</span>
+                    </button>
+
+                    <button
+                      onClick={() => setSelected(m)}
+                      className="focus-ring inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-ink-muted hover:bg-surface-hover hover:text-ink transition-colors"
+                    >
+                      <Sparkles className="h-3.5 w-3.5 text-accent" />
+                      Smart Reply
+                    </button>
+                  </div>
 
                   <button
                     onClick={() => navigate("/chats", { state: { chatId: m.chatId, messageId: m.id } })}

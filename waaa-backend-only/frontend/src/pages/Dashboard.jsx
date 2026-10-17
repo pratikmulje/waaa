@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { Link } from "react-router-dom";
 import {
   MessageSquare,
@@ -16,6 +16,7 @@ import { usePolling } from "../hooks/usePolling.js";
 import { getAlerts } from "../api/intelligence.js";
 import { getDeadlines } from "../api/intelligence.js";
 import { getStatsSummary } from "../api/stats.js";
+import { isWithinDays, isDeadlineActive, getStoredDoneSet } from "../utils/recency.js";
 
 function greeting() {
   const h = new Date().getHours();
@@ -28,17 +29,29 @@ function greeting() {
 export default function Dashboard() {
   const conn = useConnection();
   const { data: alertsData } = usePolling(
-    () => getAlerts({ unread: "true", limit: 5 }),
+    () => getAlerts({ unread: "true", limit: 10 }),
     { intervalMs: 15000 }
   );
   const { data: deadlinesData } = usePolling(
-    () => getDeadlines({ limit: 5 }),
+    () => getDeadlines({ limit: 10 }),
     { intervalMs: 30000 }
   );
   const { data: stats } = usePolling(getStatsSummary, { intervalMs: 20000 });
 
-  const unreadAlerts = alertsData?.alerts || [];
-  const upcomingDeadlines = (deadlinesData?.deadlines || []).slice(0, 3);
+  const doneDeadlineIds = useMemo(() => getStoredDoneSet("waaa_deadlines_done_ids"), []);
+  const doneAlertIds = useMemo(() => getStoredDoneSet("waaa_alerts_done_ids"), []);
+
+  const unreadAlerts = useMemo(() => {
+    return (alertsData?.alerts || []).filter(
+      (a) => !doneAlertIds.has(a.alertId) && !a.read && isWithinDays(a.createdAt, 2)
+    );
+  }, [alertsData, doneAlertIds]);
+
+  const upcomingDeadlines = useMemo(() => {
+    return (deadlinesData?.deadlines || [])
+      .filter((d) => !doneDeadlineIds.has(d.id) && d.status !== "done" && isDeadlineActive(d, 2))
+      .slice(0, 3);
+  }, [deadlinesData, doneDeadlineIds]);
 
   const quickLinks = [
     { to: "/chats", icon: MessageSquare, label: "Chats", hint: stats?.totalConversations ? `${stats.totalConversations} conversations` : "Your messages" },

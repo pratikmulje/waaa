@@ -7,7 +7,7 @@ const router = Router();
 // GET /api/messages?limit=&riskLevel=&importanceLevel=&search=
 router.get("/", async (req, res) => {
   try {
-    const { riskLevel, importanceLevel, search, limit } = req.query;
+    const { riskLevel, importanceLevel, search, limit, days } = req.query;
     const userId = req.userId || "default_user";
 
     let query = db.collection("messages").orderBy("createdAt", "desc");
@@ -23,7 +23,17 @@ router.get("/", async (req, res) => {
         ...doc.data(),
         createdAt: doc.data().createdAt?.toDate?.().toISOString() ?? null,
       }))
-      .filter((m) => !m.userId || m.userId === userId);
+      .filter((m) => !m.userId || m.userId === userId || userId === "default_user");
+
+    if (days && Number(days) > 0) {
+      const cutoff = Date.now() - Number(days) * 24 * 60 * 60 * 1000;
+      messages = messages.filter((m) => {
+        const raw = m.createdAt || m.receivedAt;
+        if (!raw) return false;
+        const t = new Date(raw).getTime();
+        return !isNaN(t) && t >= cutoff;
+      });
+    }
 
     if (riskLevel && riskLevel !== "all") {
       messages = messages.filter((m) => m.fraudAnalysis?.riskLevel === riskLevel);
@@ -47,6 +57,24 @@ router.get("/", async (req, res) => {
   } catch (error) {
     console.error("[API] /messages error:", error);
     res.status(500).json({ error: "Failed to load messages" });
+  }
+});
+
+// PATCH /api/messages/:messageId { read, done }
+router.patch("/:messageId", async (req, res) => {
+  const { messageId } = req.params;
+  const { read, done } = req.body || {};
+  try {
+    const docRef = db.collection("messages").doc(messageId);
+    const updates = {};
+    if (read !== undefined) updates.read = !!read;
+    if (done !== undefined) updates.done = !!done;
+    updates.updatedAt = new Date().toISOString();
+    await docRef.set(updates, { merge: true });
+    res.json({ ok: true, messageId, updates });
+  } catch (err) {
+    console.error("[API] PATCH /messages/:messageId error:", err);
+    res.status(500).json({ error: "Failed to update message" });
   }
 });
 

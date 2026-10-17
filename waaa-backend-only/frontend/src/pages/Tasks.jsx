@@ -1,12 +1,15 @@
-import React, { useMemo } from "react";
-import { CheckSquare, Clock, CheckCircle2, Circle } from "lucide-react";
+import React, { useMemo, useState } from "react";
+import { CheckSquare, Clock, CheckCircle2, Circle, Check } from "lucide-react";
 import AppShell from "../components/layout/AppShell.jsx";
 import EmptyState from "../components/common/EmptyState.jsx";
 import ErrorState from "../components/common/ErrorState.jsx";
 import { SkeletonRow } from "../components/common/Skeleton.jsx";
 import { usePolling } from "../hooks/usePolling.js";
-import { getTasks } from "../api/intelligence.js";
+import { getTasks, updateActionStatus } from "../api/intelligence.js";
 import { timeAgo } from "../utils/format.js";
+import { isWithinDays, getStoredDoneSet, addStoredDoneId } from "../utils/recency.js";
+
+const STORAGE_KEY = "waaa_tasks_done_ids";
 
 const STATUS_LABELS = {
   pending: { label: "Pending", color: "text-amber-glow", dot: "bg-amber-glow" },
@@ -15,21 +18,28 @@ const STATUS_LABELS = {
   overdue: { label: "Overdue", color: "text-red-400", dot: "bg-red-400" },
 };
 
-function TaskItem({ task }) {
-  const status = STATUS_LABELS[task.status] || STATUS_LABELS.pending;
+function TaskItem({ task, onDone }) {
   const isDone = task.status === "done";
+  const status = isDone ? STATUS_LABELS.done : (STATUS_LABELS[task.status] || STATUS_LABELS.pending);
 
   return (
     <div className={`flex items-start gap-3 rounded-2xl border p-4 transition-all animate-slide-up ${
       isDone
         ? "border-surface-border bg-surface-panel/50 opacity-60"
-        : "border-surface-border bg-surface-panel"
+        : "border-surface-border bg-surface-panel hover:border-surface-border-strong hover:bg-surface-panel/90"
     }`}>
-      {isDone ? (
-        <CheckCircle2 className="h-4.5 w-4.5 shrink-0 mt-0.5 text-emerald-glow" strokeWidth={1.75} />
-      ) : (
-        <Circle className="h-4.5 w-4.5 shrink-0 mt-0.5 text-ink-faint" strokeWidth={1.75} />
-      )}
+      <button
+        onClick={() => !isDone && onDone(task.id)}
+        disabled={isDone}
+        className={`focus-ring mt-0.5 rounded-full p-0.5 transition-colors ${isDone ? "cursor-default" : "cursor-pointer hover:text-emerald-400"}`}
+        title={isDone ? "Completed" : "Click to mark as done"}
+      >
+        {isDone ? (
+          <CheckCircle2 className="h-4.5 w-4.5 shrink-0 text-emerald-glow" strokeWidth={1.75} />
+        ) : (
+          <Circle className="h-4.5 w-4.5 shrink-0 text-ink-faint hover:text-emerald-400 transition-colors" strokeWidth={1.75} />
+        )}
+      </button>
 
       <div className="min-w-0 flex-1">
         <p className={`text-sm font-medium leading-snug ${isDone ? "line-through text-ink-faint" : "text-ink"}`}>
@@ -58,25 +68,106 @@ function TaskItem({ task }) {
         </div>
       </div>
 
-      <span className="shrink-0 text-[10px] text-ink-faint whitespace-nowrap">
-        {timeAgo(task.extractedAt || task.createdAt)}
-      </span>
+      <div className="flex items-center gap-2 shrink-0">
+        {!isDone && (
+          <button
+            onClick={() => onDone(task.id)}
+            className="focus-ring inline-flex items-center gap-1 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-400 hover:bg-emerald-500/20 hover:border-emerald-500/50 transition-all shadow-sm"
+            title="Mark task as done"
+          >
+            <Check className="h-3.5 w-3.5 text-emerald-400" strokeWidth={2.2} />
+            <span>Done</span>
+          </button>
+        )}
+
+        <span className="text-[10px] text-ink-faint whitespace-nowrap">
+          {timeAgo(task.extractedAt || task.createdAt || task.updatedAt)}
+        </span>
+      </div>
     </div>
   );
 }
 
 export default function TasksPage() {
+  const [showOlder, setShowOlder] = useState(false);
+  const [doneIds, setDoneIds] = useState(() => getStoredDoneSet(STORAGE_KEY));
   const { data, error, loading, reload } = usePolling(getTasks, { intervalMs: 15000 });
 
-  const tasks = data?.tasks || [];
+  const rawTasks = data?.tasks || [];
 
-  const { pending, done } = useMemo(() => ({
-    pending: tasks.filter((t) => t.status !== "done"),
-    done: tasks.filter((t) => t.status === "done"),
-  }), [tasks]);
+  // Count older tasks (> 2 days)
+  const totalOlderCount = useMemo(() => {
+    return rawTasks.filter((t) => {
+      const ts = t.extractedAt || t.createdAt || t.updatedAt;
+      return !isWithinDays(ts, 2);
+    }).length;
+  }, [rawTasks]);
+
+  // Merge backend status with local storage Done status and filter 2-day cutoff
+  const { pending, done } = useMemo(() => {
+    const activeTasks = rawTasks.filter((t) => {
+      if (!showOlder) {
+        const ts = t.extractedAt || t.createdAt || t.updatedAt;
+        if (!isWithinDays(ts, 2)) return false;
+      }
+      return true;
+    });
+
+    const p = [];
+    const d = [];
+
+    for (const t of activeTasks) {
+      const isDone = t.status === "done" || doneIds.has(t.id);
+      const normalizedTask = isDone ? { ...t, status: "done" } : t;
+      if (isDone) {
+        d.push(normalizedTask);
+      } else {
+        p.push(normalizedTask);
+      }
+    }
+
+    return { pending: p, done: d };
+  }, [rawTasks, doneIds, showOlder]);
+
+  const handleDone = async (taskId) => {
+    const updated = addStoredDoneId(STORAGE_KEY, taskId);
+    setDoneIds(updated);
+    try {
+      await updateActionStatus(taskId, "done");
+      reload();
+    } catch {
+      // optimistic update is saved in local storage
+    }
+  };
+
+  const totalVisible = pending.length + done.length;
 
   return (
     <AppShell title="Tasks">
+      {/* Recency Toolbar */}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-surface-border/40 pb-3">
+        <div className="flex items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-surface-border bg-surface-raised px-2.5 py-1 text-xs font-medium text-ink-muted">
+            <Clock className="h-3 w-3 text-accent" />
+            {showOlder ? "All tasks (history)" : "Last 48 hours"}
+          </span>
+          {totalOlderCount > 0 && (
+            <button
+              onClick={() => setShowOlder(!showOlder)}
+              className="text-xs font-medium text-accent hover:underline ml-1"
+            >
+              {showOlder ? "Show last 48h only" : `Include older (${totalOlderCount})`}
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-center gap-3 text-xs text-ink-faint">
+          <span className="text-[11px] text-ink-faint">
+            Auto-removing tasks older than 2 days
+          </span>
+        </div>
+      </div>
+
       {error && <ErrorState message="Couldn't load tasks." onRetry={reload} />}
 
       {!error && loading && (
@@ -85,15 +176,19 @@ export default function TasksPage() {
         </div>
       )}
 
-      {!error && !loading && tasks.length === 0 && (
+      {!error && !loading && totalVisible === 0 && (
         <EmptyState
           icon={CheckSquare}
           title="No tasks found"
-          description="Tasks are automatically extracted from your WhatsApp conversations."
+          description={
+            showOlder
+              ? "No tasks have been extracted yet."
+              : "No tasks extracted in the last 48 hours. Older and completed tasks are automatically removed."
+          }
         />
       )}
 
-      {!error && !loading && tasks.length > 0 && (
+      {!error && !loading && totalVisible > 0 && (
         <div className="space-y-6 max-w-2xl">
           {pending.length > 0 && (
             <section>
@@ -102,7 +197,9 @@ export default function TasksPage() {
                 Pending · {pending.length}
               </h3>
               <div className="space-y-2">
-                {pending.map((t, i) => <TaskItem key={t.id || i} task={t} />)}
+                {pending.map((t, i) => (
+                  <TaskItem key={t.id || i} task={t} onDone={handleDone} />
+                ))}
               </div>
             </section>
           )}
@@ -114,7 +211,9 @@ export default function TasksPage() {
                 Completed · {done.length}
               </h3>
               <div className="space-y-2">
-                {done.map((t, i) => <TaskItem key={t.id || i} task={t} />)}
+                {done.map((t, i) => (
+                  <TaskItem key={t.id || i} task={t} onDone={handleDone} />
+                ))}
               </div>
             </section>
           )}
